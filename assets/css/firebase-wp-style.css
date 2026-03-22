@@ -1,0 +1,256 @@
+/* Firestore page layout */
+.bomff-wrap #firebase-admin-panel-app{
+  max-width: none !important;
+  width: 100%;
+}
+.bomff-wrap .bomff-section{
+  max-width: none !important;
+  width: 100%;
+}
+
+/* Controls layout */
+.bomff-controls{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+  margin: 10px 0;
+}
+.bomff-controls input[type="text"]{
+  min-width: 320px;
+  max-width: 520px;
+  width: 40%;
+  padding: 6px;
+}
+.bomff-controls select{
+  padding: 6px;
+}
+.bomff-controls .button{
+  height: 32px;
+  line-height: 30px;
+}
+
+.bomff-controls-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+  margin: 10px 0;
+}
+
+/* Horizontal scroll container */
+.bomff-table-scroll{
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+  border:1px solid #dcdcde;
+  border-radius:6px;
+  background:#fff;
+}
+
+/* Table */
+#bomff-results-table{
+  width: 100%;
+  min-width: 1100px;
+  table-layout: auto;
+}
+#bomff-results-table thead th{
+  white-space: nowrap;
+}
+#bomff-results-table td{
+  word-break: normal;
+  overflow-wrap: normal;
+  vertical-align: top;
+}
+
+/* Chips */
+.bomff-chip{
+  display:inline-block;
+  background:#f0f0f1;
+  border:1px solid #dcdcde;
+  border-radius:12px;
+  padding:2px 8px;
+  margin:2px;
+  font-size:12px;
+  white-space:nowrap;
+  max-width:240px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  vertical-align:middle;
+}
+
+/* Actions column */
+.bomff-col-actions{
+  width: 220px;
+  white-space: nowrap;
+}
+
+#bomff-collection-msg{
+  margin: 8px 0 0;
+}
+
+/* Page size */
+#bomff-page-size{
+  min-width: 72px;
+  width: 72px;
+  height: 32px;
+  line-height: 32px;
+  padding: 0 8px;
+  padding-right: 28px;
+}
+
+/* Modal */
+.bomff-modal{
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.6);
+  z-index:100000;
+}
+.bomff-modal__panel{
+  background:#fff;
+  width:min(980px, 92vw);
+  height:min(90vh, 900px);
+  margin:5vh auto;
+  border-radius:10px;
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  box-shadow:0 10px 40px rgba(0,0,0,0.25);
+}
+.bomff-modal__header{
+  padding:16px 18px 8px;
+  border-bottom:1px solid #e5e5e5;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.bomff-modal__header h2{
+  margin:0;
+  font-size:18px;
+}
+.bomff-modal__meta{
+  padding:8px 18px;
+  color:#555;
+  border-bottom:1px solid #f0f0f0;
+}
+.bomff-modal__body{
+  padding:14px 18px;
+  overflow:auto;
+  flex:1 1 auto;
+  min-height:0;
+}
+.bomff-modal__footer{
+  padding:12px 18px;
+  border-top:1px solid #e5e5e5;
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:10px;
+  background:#fff;
+  flex:0 0 auto;
+}
+
+/* Forms */
+.bomff-modal__form .bomff-field{
+  margin-bottom:12px;
+}
+.bomff-modal__form label{
+  font-weight:600;
+  display:block;
+  margin-bottom:6px;
+}
+.bomff-modal__form input[type="text"],
+.bomff-modal__form input[type="number"],
+.bomff-modal__form textarea{
+  width:100%;
+  max-width:100%;
+}
+
+.bomff-hint-error{
+  color:#b32d2e;
+  margin-top:6px;
+  font-size:12px;
+}
+.bomff-muted{
+  color:#666;
+  font-size:12px;
+}
+
+/* Structure */
+.bomff-structure-box{
+  border:1px solid #dcdcde;
+  border-radius:8px;
+  padding:12px;
+  background:#fff;
+}
+.bomff-structure-fields{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  margin-top:10px;
+}
+.bomff-structure-field{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:8px;
+  border:1px solid #eee;
+  border-radius:8px;
+  background:#fafafa;
+}
+.bomff-structure-field code{
+  font-size:12px;
+}
+.bomff-structure-field .bomff-pill{
+  font-size:12px;
+  padding:2px 8px;
+  border:1px solid #dcdcde;
+  background:#f0f0f1;
+  border-radius:999px;
+  white-space:nowrap;
+}
+.bomff-structure-field .bomff-grow{
+  flex:1;
+}
+
+/* Helper classes from the cleanup */
+.bomff-mt-20 { margin-top: 20px; }
+.bomff-mt-10 { margin-top: 10px; }
+.bomff-mt-0 { margin-top: 0; }
+.bomff-my-10 { margin: 10px 0; }
+.bomff-msg-top { margin: 8px 0 0; }
+.bomff-hidden { display: none; }
+.bomff-center-muted { text-align: center; color: #666; }
+
+.bomff-json-pre{
+  max-height:60vh;
+  overflow:auto;
+  background:#f6f7f7;
+  padding:12px;
+  border:1px solid #ddd;
+}
+
+.bomff-code-textarea{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@media (max-width: 782px){
+  .bomff-modal__panel{
+    width:96vw;
+    height:92vh;
+    margin:4vh auto;
+  }
+  .bomff-modal__header,
+  .bomff-modal__meta,
+  .bomff-modal__body,
+  .bomff-modal__footer{
+    padding-left:12px;
+    padding-right:12px;
+  }
+  .bomff-controls input[type="text"]{
+    min-width:220px;
+    width:100%;
+  }
+}
