@@ -1,158 +1,40 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const cfg = window.bomffFirebaseConfig || {};
+
     const statusConnectionEl = document.getElementById('firebase-connection-status');
-    const statusAuthEl = document.getElementById('firebase-auth-status');
     const configWarningEl = document.getElementById('bomff-config-warning');
+    const collectionInputEl = document.getElementById('bomff-collection-name');
+    const loadCollectionBtn = document.getElementById('bomff-load-collection');
+    const clearResultsBtn = document.getElementById('bomff-clear-results');
+    const loadDocBtn = document.getElementById('bomff-load-doc');
+    const docIdInputEl = document.getElementById('bomff-doc-id');
+    const pageSizeEl = document.getElementById('bomff-page-size');
+    const prevPageBtn = document.getElementById('bomff-prev-page');
+    const nextPageBtn = document.getElementById('bomff-next-page');
+    const resultsBodyEl = document.getElementById('bomff-collection-results');
+    const resultsHeadRowEl = document.getElementById('bomff-results-head-row');
+    const collectionMsgEl = document.getElementById('bomff-collection-msg');
 
-    // ---------------------------------------------------------
-    // UI text (single source of truth for copy)
-    // ---------------------------------------------------------
-    const UI_TEXT = {
-        // Firebase/init
-        configNotAvailable: 'Firebase configuration is not available.',
-        configIncomplete: 'Firebase configuration is incomplete. Please check Settings.',
-        initError: 'Could not initialize Firebase.',
-        connected: 'Connected to Firebase',
-        notAuthenticated: 'Not authenticated.',
-        authenticatedAs: (email) => `Authenticated as ${email || 'unknown user'}.`,
+    const importStructureBtn = document.getElementById('bomff-import-structure');
+    const viewStructureBtn = document.getElementById('bomff-view-structure');
+    const createDocBtn = document.getElementById('bomff-create-doc');
+    const deleteStructureBtn = document.getElementById('bomff-delete-structure');
+    const structureMsgEl = document.getElementById('bomff-structure-msg');
 
-        // Structure (guided creation)
-        structureNone: 'No active structure. Import one from a collection to enable guided creation.',
-        structureLoaded: 'Active structure loaded.',
-        structureLoadError: (msg) => `Could not load the structure: ${msg}`,
-        structureImportNeedCollection: 'Load a collection first (in the explorer) to import its structure.',
-        structureAnalyzing: (col) => `Analyzing structure for “${col}”…`,
-        structureNoDocs: 'No documents found to infer a structure.',
-        structureImportError: (msg) => `Could not import structure: ${msg}`,
-        structureSelectAtLeastOne: 'Select at least one field.',
-        structureReplaceConfirmDifferent: (oldCol, newCol) =>
-            `An active structure already exists for “${oldCol}”.\nDo you want to replace it with the structure from “${newCol}”?`,
-        structureReplaceConfirmSame: 'A structure already exists for this collection. Replace it?',
-        structureSaved: 'Structure saved.',
-        structureSaveError: (msg) => `Could not save the structure: ${msg}`,
-        structureDeleteConfirm: 'Delete the active structure? Guided document creation will be disabled.',
-        structureDeleted: 'Structure deleted.',
-        structureDeleteError: (msg) => `Could not delete the structure: ${msg}`,
+    let currentCollection = '';
+    let nextPageToken = '';
+    let pageStack = [];
+    let currentPageToken = '';
+    let lastDocs = [];
+    let activeStructure = null;
 
-        // Create document
-        createNoStructure: 'No active structure.',
-        createNeedLoadCollection: (col) =>
-            `Load the “${col}” collection to create documents.`,
-        createMissingRequired: (field) => `Missing required field: ${field}`,
-        createInvalidNumber: (field) => `Invalid number in: ${field}`,
-        createInvalidJson: (field) => `Invalid JSON in: ${field}`,
-        createError: (msg) => `Could not create document: ${msg}`,
-
-        // Explorer
-        enterCollection: 'Enter a collection name.',
-        loadCollectionFirst: 'Load a collection first.',
-        enterDocId: 'Enter a Doc ID.',
-        loadingCollection: (col) => `Loading “${col}”…`,
-        noDocsOrNoPerm: 'No documents found (or insufficient permissions).',
-        noResults: 'No results.',
-        loadedCount: (n) => `Loaded ${n} document${n === 1 ? '' : 's'}.`,
-        loadError: (msg) => `Could not load documents: ${msg}`,
-        errorLoadingDocs: 'Error loading documents.',
-        loadingDoc: (id) => `Loading document “${id}”…`,
-        docNotFound: 'Document not found.',
-        loadedOne: 'Loaded 1 document.',
-
-        // JSON / Edit / Delete
-        confirmDelete: (id) => `Are you sure you want to delete “${id}”?`,
-        deleteError: (msg) => `Could not delete: ${msg}`,
-        copyError: 'Could not copy to clipboard.',
-        docLoadError: (msg) => `Could not load document: ${msg}`,
-        jsonInvalid: (msg) => `Invalid JSON: ${msg}`,
-        saveError: (msg) => `Could not save: ${msg}`,
-        fieldSaveError: (msg) => `Could not save field: ${msg}`,
-        fieldSaved: 'Field saved.',
-        duplicatePrompt: (id) => `New document ID for the duplicate. Leave empty to generate an automatic ID. Suggested: ${id}-copy`,
-        duplicateSameId: 'The duplicate cannot use the same document ID.',
-        duplicateDone: 'Document duplicated.',
-        duplicateError: (msg) => `Could not duplicate document: ${msg}`,
-
-        // Table placeholders
-        tableLoading: 'Loading…',
-        tableEmptyHint: 'Enter a collection name and click “Load”.',
-
-        // Field helpers
-        jsonPlaceholder: (type) => `JSON (${type})`,
-        jsonHelp: (type) => `Enter valid JSON (${type}). Example: [] or {}.`,
-    };
-
-    // Firebase instances
-
-    // ---------------------------
-    // Auth UI (Email/Password)
-    // ---------------------------
-    const authEmailEl = document.getElementById('bomff-auth-email');
-    const authPassEl = document.getElementById('bomff-auth-password');
-    const btnAuthLogin = document.getElementById('bomff-auth-login');
-    const btnAuthLogout = document.getElementById('bomff-auth-logout');
-
-    const authOutBox = document.getElementById('bomff-auth-when-signed-out');
-    const authInBox = document.getElementById('bomff-auth-when-signed-in');
-    const authMsgOut = document.getElementById('bomff-auth-msg');
-    const authMsgIn = document.getElementById('bomff-auth-msg-in');
-
-    function setAuthUiSignedIn(user) {
-        if (authOutBox) authOutBox.style.display = 'none';
-        if (authInBox) authInBox.style.display = '';
-        if (authMsgIn) authMsgIn.textContent = user?.email ? `Signed in as ${user.email}` : 'Signed in';
-        if (authMsgOut) authMsgOut.textContent = '';
-    }
-
-    function setAuthUiSignedOut() {
-        if (authOutBox) authOutBox.style.display = '';
-        if (authInBox) authInBox.style.display = 'none';
-        if (authMsgIn) authMsgIn.textContent = '';
-    }
-
-    async function doLoginEmailPassword() {
-        const email = (authEmailEl?.value || '').trim();
-        const pass = (authPassEl?.value || '').trim();
-
-        if (!email || !pass) {
-            if (authMsgOut) authMsgOut.textContent = 'Enter email and password.';
-            return;
-        }
-        if (!auth) {
-            if (authMsgOut) authMsgOut.textContent = 'Firebase is not initialized yet.';
-            return;
-        }
-
-        try {
-            if (btnAuthLogin) btnAuthLogin.disabled = true;
-            if (authMsgOut) authMsgOut.textContent = 'Signing in…';
-            await auth.signInWithEmailAndPassword(email, pass);
-            if (authMsgOut) authMsgOut.textContent = '';
-        } catch (e) {
-            console.error(e);
-            if (authMsgOut) authMsgOut.textContent = e?.message || 'Sign-in failed.';
-        } finally {
-            if (btnAuthLogin) btnAuthLogin.disabled = false;
-        }
-    }
-
-    async function doLogout() {
-        if (!auth) return;
-        try {
-            if (btnAuthLogout) btnAuthLogout.disabled = true;
-            if (authMsgIn) authMsgIn.textContent = 'Signing out…';
-            await auth.signOut();
-        } catch (e) {
-            console.error(e);
-            if (authMsgIn) authMsgIn.textContent = e?.message || 'Sign-out failed.';
-        } finally {
-            if (btnAuthLogout) btnAuthLogout.disabled = false;
-        }
-    }
-
-    if (btnAuthLogin) btnAuthLogin.addEventListener('click', doLoginEmailPassword);
-    if (btnAuthLogout) btnAuthLogout.addEventListener('click', doLogout);
-    if (authPassEl) {
-        authPassEl.addEventListener('keydown', (ev) => {
-            if (ev.key === 'Enter') doLoginEmailPassword();
-        });
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#039;');
     }
 
     function setConnectionStatus(text, ok = true) {
@@ -161,1705 +43,484 @@ document.addEventListener('DOMContentLoaded', () => {
         statusConnectionEl.className = ok ? 'bomff-status-success' : 'bomff-status-error';
     }
 
+    function setMessage(text, ok = true) {
+        if (!collectionMsgEl) return;
+        collectionMsgEl.textContent = text || '';
+        collectionMsgEl.style.color = ok ? 'green' : 'red';
+    }
+
+    function setStructureMessage(text, ok = true) {
+        if (!structureMsgEl) return;
+        structureMsgEl.textContent = text || '';
+        structureMsgEl.style.color = ok ? 'green' : 'red';
+    }
+
     function showConfigWarning(show) {
         if (!configWarningEl) return;
         configWarningEl.classList.toggle('bomff-hidden', !show);
     }
 
-    function setAuthStatus(text, ok = true) {
-        if (!statusAuthEl) return;
-        statusAuthEl.textContent = text;
-        statusAuthEl.className = ok ? 'bomff-status-success' : 'bomff-status-error';
-    }
-
-    if (!statusConnectionEl && !statusAuthEl) return;
-
-	const firebaseConfig =
-		(typeof window.bomffFirebaseConfig !== 'undefined' && window.bomffFirebaseConfig) ||
-		null;
-
-    if (!firebaseConfig) {
-        setConnectionStatus(UI_TEXT.configNotAvailable, false);
-        showConfigWarning(true);
-        return;
-    }
-
-    const firebaseConfigSafe = firebaseConfig || {};
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        setConnectionStatus(UI_TEXT.configIncomplete, false);
-        showConfigWarning(true);
-        return;
-    }
-
-    let app, db, auth;
-    try {
-        app = (firebase.apps && firebase.apps.length) ? firebase.app() : firebase.initializeApp(firebaseConfigSafe);
-        db = firebase.firestore();
-        auth = firebase.auth();
-		
-		window.fwpFirestore = window.fwpFirestore || {};
-		window.fwpFirestore.db = db;
-		window.fwpFirestore.auth = auth;	
-
-        setConnectionStatus(UI_TEXT.connected, true);
-        showConfigWarning(false);
-    } catch (e) {
-        console.error(e);
-        setConnectionStatus(UI_TEXT.initError, false);
-        showConfigWarning(true);
-        return;
-    }
-
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(console.error);
-
-    // Detect if we're on Firestore screen
-    const collectionInputEl = document.getElementById('bomff-collection-name');
-    const loadCollectionBtn = document.getElementById('bomff-load-collection');
-    const resultsBodyEl = document.getElementById('bomff-collection-results');
-    const isFirestorePage = !!(collectionInputEl && loadCollectionBtn && resultsBodyEl);
-
-    // Structure UI (top bar)
-    const btnImportStructure = document.getElementById('bomff-import-structure');
-    const btnViewStructure = document.getElementById('bomff-view-structure');
-    const btnCreateDoc = document.getElementById('bomff-create-doc');
-    const btnDeleteStructure = document.getElementById('bomff-delete-structure');
-    const structureMsgEl = document.getElementById('bomff-structure-msg');
-
-    // Mini summary
-    const structureMiniEl = document.getElementById('bomff-structure-mini');
-    const structureCollectionEl = document.getElementById('bomff-structure-collection');
-    const structureCountEl = document.getElementById('bomff-structure-count');
-
-    // Modals
-    const jsonModal = document.getElementById('bomff-json-modal');
-    const jsonContent = document.getElementById('bomff-json-content');
-    const btnJsonClose = document.getElementById('bomff-close-json');
-    const btnJsonCloseX = document.getElementById('bomff-close-json-x');
-    const btnJsonCopy = document.getElementById('bomff-copy-json');
-    const btnJsonDownload = document.getElementById('bomff-download-json');
-
-    const editModal = document.getElementById('bomff-edit-modal');
-    const editCollectionEl = document.getElementById('bomff-edit-collection');
-    const editDocIdEl = document.getElementById('bomff-edit-docid');
-    const editJsonEl = document.getElementById('bomff-edit-json');
-    const editFieldsEl = document.getElementById('bomff-edit-fields');
-    const editErrorEl = document.getElementById('bomff-edit-error');
-    const btnEditSave = document.getElementById('bomff-edit-save');
-    const btnEditCancel = document.getElementById('bomff-edit-cancel');
-    const btnEditCloseX = document.getElementById('bomff-edit-close-x');
-
-    const structureModal = document.getElementById('bomff-structure-modal');
-    const structureModalCollectionEl = document.getElementById('bomff-structure-modal-collection');
-    const structureDetectedEl = document.getElementById('bomff-structure-detected');
-    const btnStructureCancel = document.getElementById('bomff-structure-cancel');
-    const btnStructureSave = document.getElementById('bomff-structure-save');
-    const btnStructureCloseX = document.getElementById('bomff-structure-close-x');
-
-    const structureViewModal = document.getElementById('bomff-structure-view-modal');
-    const structureViewCollectionEl = document.getElementById('bomff-structure-view-collection');
-    const structureViewFieldsEl = document.getElementById('bomff-structure-view-fields');
-    const btnStructureViewClose = document.getElementById('bomff-structure-view-close');
-    const btnStructureViewCloseX = document.getElementById('bomff-structure-view-close-x');
-
-    const createModal = document.getElementById('bomff-create-modal');
-    const createCollectionEl = document.getElementById('bomff-create-collection');
-    const createFieldsEl = document.getElementById('bomff-create-fields');
-    const createErrorEl = document.getElementById('bomff-create-error');
-    const btnCreateSave = document.getElementById('bomff-create-save');
-    const btnCreateCancel = document.getElementById('bomff-create-cancel');
-    const btnCreateCloseX = document.getElementById('bomff-create-close-x');
-
-    const fieldModal = document.getElementById('bomff-field-modal');
-    const fieldDocIdEl = document.getElementById('bomff-field-docid');
-    const fieldNameEl = document.getElementById('bomff-field-name');
-    const fieldTypeEl = document.getElementById('bomff-field-type');
-    const fieldActionsEl = document.getElementById('bomff-field-actions');
-    const fieldEditorEl = document.getElementById('bomff-field-editor');
-    const fieldErrorEl = document.getElementById('bomff-field-error');
-    const btnFieldSave = document.getElementById('bomff-field-save');
-    const btnFieldCancel = document.getElementById('bomff-field-cancel');
-    const btnFieldCloseX = document.getElementById('bomff-field-close-x');
-
     function setExplorerEnabled(enabled) {
-        if (!isFirestorePage) return;
-        [
-            'bomff-collection-name',
-            'bomff-load-collection',
-            'bomff-clear-results',
-            'bomff-prev-page',
-            'bomff-next-page',
-            'bomff-load-doc',
-            'bomff-doc-id',
-            'bomff-page-size'
-        ].forEach((id) => {
-            const el = document.getElementById(id);
+        [collectionInputEl, loadCollectionBtn, clearResultsBtn, loadDocBtn, docIdInputEl, pageSizeEl, prevPageBtn, nextPageBtn, importStructureBtn, createDocBtn, deleteStructureBtn, viewStructureBtn].forEach((el) => {
             if (el) el.disabled = !enabled;
         });
-
-        if (btnImportStructure) btnImportStructure.disabled = !enabled;
     }
 
-    // ---------------------------
-    // Helpers AJAX (WP)
-    // ---------------------------
     async function wpAjax(action, payload = {}) {
-        if (!firebaseConfig.ajaxUrl) throw new Error('ajaxUrl not available');
+        if (!cfg.ajaxUrl) throw new Error('AJAX URL not available.');
+
         const fd = new FormData();
         fd.append('action', action);
-        fd.append('nonce', firebaseConfig.nonce || '');
-        Object.entries(payload).forEach(([k, v]) => fd.append(k, v));
+        fd.append('nonce', cfg.nonce || '');
 
-        const res = await fetch(firebaseConfig.ajaxUrl, {
+        Object.entries(payload).forEach(([key, value]) => {
+            fd.append(key, value === undefined || value === null ? '' : value);
+        });
+
+        const res = await fetch(cfg.ajaxUrl, {
             method: 'POST',
             credentials: 'same-origin',
-            body: fd
+            body: fd,
         });
 
         const json = await res.json().catch(() => null);
-        if (!json) throw new Error('Invalid server response');
-        if (!json.success) throw new Error((json.data && json.data.message) ? json.data.message : 'AJAX error');
+        if (!json) throw new Error('Invalid server response.');
+        if (!json.success) {
+            throw new Error(json.data && json.data.message ? json.data.message : 'Request failed.');
+        }
         return json.data;
     }
 
-    function setStructureMsg(text, ok = true) {
-        if (!structureMsgEl) return;
-        structureMsgEl.textContent = text;
-        structureMsgEl.style.color = ok ? 'green' : 'red';
-    }
-
-    function hide(el) {
-        if (el) el.style.display = 'none';
-    }
-
-    function show(el) {
-        if (el) el.style.display = '';
-    }
-
-    function closeModal(modalEl) {
-        if (!modalEl) return;
-        modalEl.style.display = 'none';
-        modalEl.setAttribute('aria-hidden', 'true');
-    }
-
-    function openModal(modalEl) {
-        if (!modalEl) return;
-        modalEl.style.display = 'block';
-        modalEl.setAttribute('aria-hidden', 'false');
-    }
-
-    function escapeHtml(s) {
-        return String(s)
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#039;');
-    }
-
-    function safeJsonStringify(obj) {
-        return JSON.stringify(obj, (k, v) => {
-            if (v && typeof v === 'object' && typeof v.seconds === 'number' && typeof v.nanoseconds === 'number') {
-                return {
-                    _type: 'timestamp',
-                    seconds: v.seconds,
-                    nanoseconds: v.nanoseconds
-                };
-            }
-            return v;
-        }, 2);
-    }
-
-    function reviveTimestamps(obj) {
-        if (obj === null || typeof obj === 'undefined') return obj;
-        if (Array.isArray(obj)) return obj.map(reviveTimestamps);
-        if (typeof obj === 'object') {
-            if (obj._type === 'timestamp' && typeof obj.seconds === 'number') {
-                return new firebase.firestore.Timestamp(obj.seconds, obj.nanoseconds || 0);
-            }
-            const out = {};
-            for (const [k, v] of Object.entries(obj)) out[k] = reviveTimestamps(v);
-            return out;
+    function compactValue(value) {
+        if (value === null || value === undefined) return '—';
+        if (typeof value === 'boolean') return value ? 'true' : 'false';
+        if (typeof value === 'number') return String(value);
+        if (typeof value === 'string') {
+            if (value.length > 60) return `${value.slice(0, 60)}…`;
+            return value;
         }
-        return obj;
+        if (Array.isArray(value)) return `[${value.length}]`;
+        if (typeof value === 'object' && value._type === 'timestamp') return value.iso || 'Timestamp';
+        if (typeof value === 'object') return 'Object';
+        return String(value);
     }
 
-    function safeJsonParse(text) {
-        const obj = JSON.parse(text);
-        return reviveTimestamps(obj);
-    }
-
-    // ---------------------------
-    // Extension events (for addons)
-    // ---------------------------
-    function fwpEmit(name, detail) {
-        try {
-            document.dispatchEvent(new CustomEvent(name, {
-                detail
-            }));
-        } catch (e) {}
-    }
-
-    function fwpCtx(base) {
-        return Object.assign({
-                ts: Date.now(),
-                screen: 'firestore',
-                projectId: firebaseConfig && firebaseConfig.projectId ? firebaseConfig.projectId : null,
-                isPro: !!(firebaseConfig && firebaseConfig.isPro)
-            },
-            base || {}
-        );
-    }
-
-	window.fwpEmit = window.fwpEmit || fwpEmit;
-	window.fwpCtx  = window.fwpCtx  || fwpCtx;
-
-
-    // ---------------------------
-    // Structure
-    // ---------------------------
-    let activeStructure = null; // { collection, fields: [{name,type,required,auto}] }
-    let currentCollection = null;
-
-    const lastCollectionStorageKey = 'bomff_last_collection_' + (firebaseConfig && firebaseConfig.projectId ? firebaseConfig.projectId : 'default');
-
-    function getSavedCollectionName() {
-        try {
-            return window.localStorage.getItem(lastCollectionStorageKey) || '';
-        } catch (e) {
-            return '';
+    function clearTable(message = 'Enter a collection and click “Load”.') {
+        if (!resultsBodyEl) return;
+        if (resultsHeadRowEl) {
+            resultsHeadRowEl.innerHTML = `
+                <th>Doc ID</th>
+                <th>Fields</th>
+                <th class="bomff-col-actions">Actions</th>
+            `;
         }
+        resultsBodyEl.innerHTML = `
+            <tr>
+                <td colspan="3" class="bomff-center-muted">${escapeHtml(message)}</td>
+            </tr>
+        `;
     }
 
-    function saveCollectionName(name) {
-        if (!name) return;
-        try {
-            window.localStorage.setItem(lastCollectionStorageKey, name);
-        } catch (e) {
-            // localStorage can be unavailable in strict browser/privacy modes.
-        }
+    function detectColumns(docs) {
+        const set = new Set();
+        docs.forEach((doc) => {
+            Object.keys(doc.data || {}).forEach((key) => set.add(key));
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })).slice(0, 12);
     }
 
-    if (collectionInputEl && !collectionInputEl.value) {
-        const savedCollectionName = getSavedCollectionName();
-        if (savedCollectionName) {
-            collectionInputEl.value = savedCollectionName;
-        }
-    }
+    function renderDocuments(docs) {
+        lastDocs = docs || [];
 
-    function renderMiniStructure() {
-        if (!structureMiniEl || !structureCollectionEl || !structureCountEl) return;
+        if (!resultsBodyEl || !resultsHeadRowEl) return;
 
-        if (!activeStructure || !activeStructure.collection || !Array.isArray(activeStructure.fields)) {
-            hide(structureMiniEl);
-            setStructureMsg(UI_TEXT.structureNone, false);
-
-            if (btnCreateDoc) btnCreateDoc.disabled = true;
-            if (btnDeleteStructure) btnDeleteStructure.disabled = true;
-            if (btnViewStructure) btnViewStructure.disabled = true;
+        if (!lastDocs.length) {
+            clearTable('No documents found.');
             return;
         }
 
-        show(structureMiniEl);
-        structureCollectionEl.textContent = activeStructure.collection;
-        structureCountEl.textContent = String(activeStructure.fields.length);
+        const columns = detectColumns(lastDocs);
+        const usedColumns = new Set(columns);
 
-        if (btnDeleteStructure) btnDeleteStructure.disabled = false;
-        if (btnViewStructure) btnViewStructure.disabled = false;
+        resultsHeadRowEl.innerHTML = `
+            <th>Doc ID</th>
+            ${columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('')}
+            <th>Other fields</th>
+            <th class="bomff-col-actions">Actions</th>
+        `;
 
-        // Create only if it matches the loaded collection
-        if (btnCreateDoc) {
-            btnCreateDoc.disabled = !currentCollection || (currentCollection !== activeStructure.collection);
+        resultsBodyEl.innerHTML = lastDocs.map((doc) => {
+            const data = doc.data || {};
+            const otherFields = Object.keys(data).filter((key) => !usedColumns.has(key));
+
+            return `
+                <tr data-doc-id="${escapeHtml(doc.id)}">
+                    <td><code>${escapeHtml(doc.id)}</code></td>
+                    ${columns.map((col) => `<td>${escapeHtml(compactValue(data[col]))}</td>`).join('')}
+                    <td>${otherFields.length ? escapeHtml(otherFields.join(', ')) : '—'}</td>
+                    <td class="bomff-col-actions">
+                        <button class="button button-small" type="button" data-action="view" data-doc-id="${escapeHtml(doc.id)}">View</button>
+                        <button class="button button-small" type="button" data-action="edit" data-doc-id="${escapeHtml(doc.id)}">Edit</button>
+                        <button class="button button-small" type="button" data-action="delete" data-doc-id="${escapeHtml(doc.id)}">Delete</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    async function loadCollection(pageToken = '') {
+        const collection = (collectionInputEl?.value || '').trim();
+        if (!collection) {
+            setMessage('Enter a collection name.', false);
+            return;
         }
 
-        setStructureMsg(UI_TEXT.structureLoaded, true);
+        currentCollection = collection;
+        currentPageToken = pageToken || '';
+
+        try {
+            setMessage(`Loading “${collection}”…`, true);
+            if (loadCollectionBtn) loadCollectionBtn.disabled = true;
+
+            const data = await wpAjax('bomff_list_documents', {
+                collection,
+                pageSize: pageSizeEl?.value || 25,
+                pageToken: currentPageToken,
+            });
+
+            nextPageToken = data.nextPageToken || '';
+            renderDocuments(data.documents || []);
+
+            if (prevPageBtn) prevPageBtn.disabled = pageStack.length === 0;
+            if (nextPageBtn) nextPageBtn.disabled = !nextPageToken;
+
+            try {
+                window.localStorage.setItem('bomff_last_collection', collection);
+            } catch (e) {}
+
+            setMessage(`Loaded ${(data.documents || []).length} document(s).`, true);
+        } catch (e) {
+            console.error(e);
+            clearTable('Could not load documents.');
+            setMessage(e.message || 'Could not load documents.', false);
+        } finally {
+            if (loadCollectionBtn) loadCollectionBtn.disabled = false;
+        }
     }
 
-    function renderStructureViewModal() {
-        if (!structureViewCollectionEl || !structureViewFieldsEl) return;
-        if (!activeStructure) return;
+    async function loadSingleDocument() {
+        const collection = (collectionInputEl?.value || '').trim();
+        const docId = (docIdInputEl?.value || '').trim();
 
-        structureViewCollectionEl.textContent = activeStructure.collection || '';
-        structureViewFieldsEl.innerHTML = '';
+        if (!collection || !docId) {
+            setMessage('Enter collection and document ID.', false);
+            return;
+        }
 
-        (activeStructure.fields || []).forEach((f) => {
-            const row = document.createElement('div');
-            row.className = 'bomff-structure-field';
-            row.innerHTML = `
-        <div class="bomff-grow">
-          <div><code>${escapeHtml(f.name)}</code></div>
-          <div class="bomff-muted">${escapeHtml(f.required ? 'required' : 'optional')}${f.auto ? ' · auto' : ''}</div>
-        </div>
-        <div class="bomff-pill">${escapeHtml(f.type || 'string')}</div>
-      `;
-            structureViewFieldsEl.appendChild(row);
+        try {
+            setMessage(`Loading document “${docId}”…`, true);
+            const data = await wpAjax('bomff_get_document', { collection, docId });
+            currentCollection = collection;
+            nextPageToken = '';
+            pageStack = [];
+            renderDocuments(data.document ? [data.document] : []);
+            setMessage('Loaded 1 document.', true);
+        } catch (e) {
+            console.error(e);
+            setMessage(e.message || 'Could not load document.', false);
+        }
+    }
+
+    async function getFreshDocument(docId) {
+        const data = await wpAjax('bomff_get_document', {
+            collection: currentCollection,
+            docId,
         });
+        return data.document;
     }
 
-    async function loadActiveStructureFromWP() {
+    async function viewDocument(docId) {
+        try {
+            const doc = await getFreshDocument(docId);
+            const pretty = JSON.stringify(doc.data || {}, null, 2);
+            const popup = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
+            if (popup) {
+                popup.document.write(`<pre style="white-space:pre-wrap;font:14px/1.4 monospace;padding:20px;">${escapeHtml(pretty)}</pre>`);
+                popup.document.close();
+            } else {
+                alert(pretty);
+            }
+        } catch (e) {
+            console.error(e);
+            setMessage(e.message || 'Could not load document.', false);
+        }
+    }
+
+    async function editDocument(docId) {
+        try {
+            const doc = await getFreshDocument(docId);
+            const current = JSON.stringify(doc.data || {}, null, 2);
+            const updated = prompt('Edit document JSON:', current);
+
+            if (updated === null) return;
+
+            let parsed;
+            try {
+                parsed = JSON.parse(updated);
+            } catch (e) {
+                setMessage(`Invalid JSON: ${e.message}`, false);
+                return;
+            }
+
+            await wpAjax('bomff_save_document', {
+                collection: currentCollection,
+                docId,
+                data: JSON.stringify(parsed),
+            });
+
+            setMessage('Document saved.', true);
+            await loadCollection(currentPageToken);
+        } catch (e) {
+            console.error(e);
+            setMessage(e.message || 'Could not save document.', false);
+        }
+    }
+
+    async function deleteDocument(docId) {
+        if (!confirm(`Delete document “${docId}”?`)) return;
+
+        try {
+            await wpAjax('bomff_delete_document', {
+                collection: currentCollection,
+                docId,
+            });
+
+            setMessage('Document deleted.', true);
+            await loadCollection(currentPageToken);
+        } catch (e) {
+            console.error(e);
+            setMessage(e.message || 'Could not delete document.', false);
+        }
+    }
+
+    function inferStructureFromDocs(docs) {
+        const fields = new Map();
+        docs.forEach((doc) => {
+            Object.entries(doc.data || {}).forEach(([key, value]) => {
+                if (!fields.has(key)) {
+                    fields.set(key, {
+                        name: key,
+                        type: Array.isArray(value) ? 'array' : (value && typeof value === 'object' ? 'map' : typeof value),
+                        required: false,
+                        auto: false,
+                    });
+                }
+            });
+        });
+        return Array.from(fields.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    async function importStructure() {
+        if (!currentCollection || !lastDocs.length) {
+            setStructureMessage('Load a collection first.', false);
+            return;
+        }
+
+        const fields = inferStructureFromDocs(lastDocs);
+        if (!fields.length) {
+            setStructureMessage('No fields detected.', false);
+            return;
+        }
+
+        try {
+            const data = await wpAjax('bomff_save_structure', {
+                collection: currentCollection,
+                fields: JSON.stringify(fields),
+            });
+            activeStructure = data.structure;
+            setStructureMessage(`Structure saved for “${currentCollection}”.`, true);
+            if (viewStructureBtn) viewStructureBtn.disabled = false;
+            if (deleteStructureBtn) deleteStructureBtn.disabled = false;
+        } catch (e) {
+            console.error(e);
+            setStructureMessage(e.message || 'Could not save structure.', false);
+        }
+    }
+
+    async function loadStructure() {
         try {
             const data = await wpAjax('bomff_get_structure', {});
             activeStructure = data.structure && Object.keys(data.structure).length ? data.structure : null;
-            renderMiniStructure();
+            if (activeStructure) {
+                setStructureMessage(`Active structure: ${activeStructure.collection}`, true);
+                if (viewStructureBtn) viewStructureBtn.disabled = false;
+                if (deleteStructureBtn) deleteStructureBtn.disabled = false;
+            } else {
+                setStructureMessage('No active structure.', false);
+            }
         } catch (e) {
             console.error(e);
-            setStructureMsg(UI_TEXT.structureLoadError(e.message), false);
+            setStructureMessage(e.message || 'Could not load structure.', false);
         }
     }
 
-    async function saveActiveStructureToWP(structure) {
-        const payload = {
-            collection: structure.collection,
-            fields: JSON.stringify(structure.fields || [])
-        };
-        const data = await wpAjax('bomff_save_structure', payload);
-        activeStructure = data.structure;
-        renderMiniStructure();
-    }
-
-    async function deleteActiveStructureFromWP() {
-        await wpAjax('bomff_delete_structure', {});
-        activeStructure = null;
-        renderMiniStructure();
-    }
-
-    function detectType(value) {
-        if (value === null || typeof value === 'undefined') return 'null';
-        if (Array.isArray(value)) return 'array';
-        if (typeof value === 'string') return 'string';
-        if (typeof value === 'number') return 'number';
-        if (typeof value === 'boolean') return 'boolean';
-
-        if (value && typeof value === 'object' && typeof value.seconds === 'number' && typeof value.nanoseconds === 'number') {
-            return 'timestamp';
+    async function deleteStructure() {
+        if (!confirm('Delete active structure?')) return;
+        try {
+            await wpAjax('bomff_delete_structure', {});
+            activeStructure = null;
+            setStructureMessage('Structure deleted.', true);
+            if (viewStructureBtn) viewStructureBtn.disabled = true;
+            if (deleteStructureBtn) deleteStructureBtn.disabled = true;
+        } catch (e) {
+            console.error(e);
+            setStructureMessage(e.message || 'Could not delete structure.', false);
         }
-        if (typeof value === 'object') return 'map';
-        return 'string';
     }
 
-    function isAutoTimestampField(fieldName, type) {
-        const k = String(fieldName || '').toLowerCase();
-        if (type !== 'timestamp') return false;
-        return (k === 'createdat' || k === 'updatedat' || k.endsWith('_at'));
+    function viewStructure() {
+        if (!activeStructure) {
+            setStructureMessage('No active structure.', false);
+            return;
+        }
+        alert(JSON.stringify(activeStructure, null, 2));
     }
 
-    async function importStructureFromCollection(colName) {
-        const limit = 25;
-        const snap = await db
-            .collection(colName)
-            .orderBy(firebase.firestore.FieldPath.documentId())
-            .limit(limit)
-            .get();
-
-        if (snap.empty) return [];
-
-        const docs = snap.docs;
-        const stats = new Map(); // field -> {count, types:{}}
-        docs.forEach((d) => {
-            const data = d.data() || {};
-            Object.entries(data).forEach(([k, v]) => {
-                if (!stats.has(k)) stats.set(k, {
-                    count: 0,
-                    types: {}
-                });
-                const st = stats.get(k);
-                st.count += 1;
-                const t = detectType(v);
-                st.types[t] = (st.types[t] || 0) + 1;
+    function bindEvents() {
+        if (loadCollectionBtn) {
+            loadCollectionBtn.addEventListener('click', () => {
+                pageStack = [];
+                nextPageToken = '';
+                loadCollection('');
             });
-        });
+        }
 
-        const fields = [];
-        stats.forEach((st, name) => {
-            const entries = Object.entries(st.types).sort((a, b) => b[1] - a[1]);
-            const domType = entries.length ? entries[0][0] : 'string';
-            const required = st.count >= Math.max(1, Math.ceil(docs.length * 0.8));
-            const auto = isAutoTimestampField(name, domType);
-
-            fields.push({
-                name,
-                type: domType === 'null' ? 'string' : domType,
-                required,
-                auto
+        if (clearResultsBtn) {
+            clearResultsBtn.addEventListener('click', () => {
+                clearTable();
+                setMessage('');
+                nextPageToken = '';
+                pageStack = [];
+                if (prevPageBtn) prevPageBtn.disabled = true;
+                if (nextPageBtn) nextPageBtn.disabled = true;
             });
-        });
-
-        fields.sort((a, b) => {
-            if (a.required !== b.required) return a.required ? -1 : 1;
-            return a.name.localeCompare(b.name);
-        });
-
-        return fields;
-    }
-
-    let detectedFieldsBuffer = [];
-
-    function renderDetectedFieldsForModal(fields) {
-        if (!structureDetectedEl) return;
-        structureDetectedEl.innerHTML = '';
-
-        fields.forEach((f, idx) => {
-            const row = document.createElement('div');
-            row.className = 'bomff-structure-field';
-            row.innerHTML = `
-        <label style="display:flex; align-items:center; gap:10px; width:100%; margin:0;">
-          <input type="checkbox" class="bomff-structure-include" data-idx="${idx}" checked />
-          <div class="bomff-grow">
-            <div><code>${escapeHtml(f.name)}</code></div>
-            <div class="bomff-muted">
-              <span class="bomff-pill" style="margin-right:6px;">${escapeHtml(f.type)}</span>
-              ${f.required ? 'required' : 'optional'}
-              ${f.auto ? ' · auto' : ''}
-            </div>
-          </div>
-        </label>
-      `;
-            structureDetectedEl.appendChild(row);
-        });
-    }
-
-    function getSelectedFieldsFromModal(originalFields) {
-        const checks = structureDetectedEl ? structureDetectedEl.querySelectorAll('.bomff-structure-include') : [];
-        const selected = [];
-        checks.forEach((ch) => {
-            if (!ch.checked) return;
-            const idx = parseInt(ch.getAttribute('data-idx'), 10);
-            const f = originalFields[idx];
-            if (f) selected.push(f);
-        });
-        return selected;
-    }
-
-    // ---------------------------
-    // Create document from structure
-    // ---------------------------
-    function buildCreateForm(fields) {
-        if (!createFieldsEl) return;
-        createFieldsEl.innerHTML = '';
-
-        fields.forEach((f) => {
-            if (f.auto) return;
-            const wrap = document.createElement('div');
-            wrap.className = 'bomff-field';
-
-            const id = `bomff-create-${f.name}`;
-            let inputHtml = '';
-
-            if (f.type === 'number') {
-                inputHtml = `<input type="number" id="${escapeHtml(id)}" data-type="number" data-name="${escapeHtml(f.name)}" />`;
-            } else if (f.type === 'boolean') {
-                inputHtml = `<label style="display:flex;align-items:center;gap:8px;font-weight:400;">
-          <input type="checkbox" id="${escapeHtml(id)}" data-type="boolean" data-name="${escapeHtml(f.name)}" />
-          <span>${escapeHtml(f.name)} ${f.required ? '*' : ''}</span>
-        </label>`;
-            } else if (f.type === 'array' || f.type === 'map') {
-                inputHtml = `<textarea id="${escapeHtml(id)}" rows="4" data-type="json" data-name="${escapeHtml(f.name)}" placeholder='${escapeHtml(UI_TEXT.jsonPlaceholder(f.type))}'></textarea>
-          <div class="bomff-muted">${escapeHtml(UI_TEXT.jsonHelp(f.type))}</div>`;
-            } else {
-                inputHtml = `<input type="text" id="${escapeHtml(id)}" data-type="string" data-name="${escapeHtml(f.name)}" />`;
-            }
-
-            if (f.type !== 'boolean') {
-                wrap.innerHTML = `
-          <label for="${escapeHtml(id)}">${escapeHtml(f.name)}${f.required ? ' *' : ''}</label>
-          ${inputHtml}
-        `;
-            } else {
-                wrap.innerHTML = inputHtml;
-            }
-
-            createFieldsEl.appendChild(wrap);
-        });
-    }
-
-    function setCreateError(text) {
-        if (!createErrorEl) return;
-        if (!text) {
-            createErrorEl.style.display = 'none';
-            createErrorEl.textContent = '';
-            return;
-        }
-        createErrorEl.style.display = '';
-        createErrorEl.textContent = text;
-    }
-
-    async function handleCreateDocument() {
-        if (!activeStructure || !activeStructure.collection) {
-            setCreateError(UI_TEXT.createNoStructure);
-            return;
-        }
-        if (!currentCollection || currentCollection !== activeStructure.collection) {
-            setCreateError(UI_TEXT.createNeedLoadCollection(activeStructure.collection));
-            return;
         }
 
-        const data = {};
-        const inputs = createFieldsEl ? createFieldsEl.querySelectorAll('[data-name]') : [];
-        for (const el of inputs) {
-            const name = el.getAttribute('data-name');
-            const type = el.getAttribute('data-type');
-            const fieldDef = (activeStructure.fields || []).find((x) => x.name === name);
-            const required = fieldDef && fieldDef.required;
+        if (loadDocBtn) loadDocBtn.addEventListener('click', loadSingleDocument);
 
-            if (type === 'boolean') {
-                data[name] = !!el.checked;
-                continue;
-            }
-
-            const raw = (el.value || '').trim();
-
-            if (required && !raw) {
-                setCreateError(UI_TEXT.createMissingRequired(name));
-                return;
-            }
-
-            if (!raw) continue;
-
-            if (type === 'number') {
-                const n = Number(raw);
-                if (Number.isNaN(n)) {
-                    setCreateError(UI_TEXT.createInvalidNumber(name));
-                    return;
+        if (collectionInputEl) {
+            collectionInputEl.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter') {
+                    pageStack = [];
+                    nextPageToken = '';
+                    loadCollection('');
                 }
-                data[name] = n;
-            } else if (type === 'json') {
-                try {
-                    data[name] = JSON.parse(raw);
-                } catch {
-                    setCreateError(UI_TEXT.createInvalidJson(name));
-                    return;
-                }
-            } else {
-                data[name] = raw;
-            }
-        }
-
-        (activeStructure.fields || []).forEach((f) => {
-            if (f.auto && f.type === 'timestamp') {
-                data[f.name] = firebase.firestore.FieldValue.serverTimestamp();
-            }
-        });
-
-        try {
-            setCreateError('');
-            btnCreateSave.disabled = true;
-
-            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
-                op: 'create',
-                collection: currentCollection,
-                docId: null,
-                data: data
-            }));
-
-            const ref = await db.collection(currentCollection).add(data);
-
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'create',
-                collection: currentCollection,
-                docId: ref && ref.id ? ref.id : null,
-                ok: true
-            }));
-
-            closeModal(createModal);
-            await loadPage('init');
-        } catch (e) {
-            console.error(e);
-
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'create',
-                collection: currentCollection,
-                docId: null,
-                ok: false,
-                error: e && e.message ? e.message : String(e)
-            }));
-
-
-            setCreateError(UI_TEXT.createError(e.message));
-        } finally {
-            btnCreateSave.disabled = false;
-        }
-    }
-
-    // ---------------------------
-    // Explorer
-    // ---------------------------
-    function isLikelyNoisyField(key) {
-        const k = key.toLowerCase();
-        return (
-            k.includes('descripcion') ||
-            k.includes('description') ||
-            k.includes('html') ||
-            k.includes('texto') ||
-            k.includes('content')
-        );
-    }
-
-    function isLikelyUrl(v) {
-        return typeof v === 'string' && (v.startsWith('http://') || v.startsWith('https://'));
-    }
-
-    function compactValue(v) {
-        if (v === null || typeof v === 'undefined') return '—';
-
-        if (typeof v === 'string') {
-            if (isLikelyUrl(v)) return 'URL';
-            if (v.length > 40) return escapeHtml(v.slice(0, 40) + '…');
-            return escapeHtml(v);
-        }
-        if (typeof v === 'number') return String(v);
-        if (typeof v === 'boolean') return v ? 'Yes' : 'No';
-        if (Array.isArray(v)) return `${v.length}`;
-
-        if (v && typeof v === 'object' && typeof v.seconds === 'number') {
-            const d = new Date(v.seconds * 1000);
-            return d.toISOString().slice(0, 10);
-        }
-
-        if (typeof v === 'object') return 'Object';
-        return escapeHtml(String(v));
-    }
-
-    function inferFieldType(v) {
-        if (v === null || typeof v === 'undefined') return 'null';
-        if (typeof v === 'string') return 'string';
-        if (typeof v === 'number') return 'number';
-        if (typeof v === 'boolean') return 'boolean';
-        if (Array.isArray(v)) return 'array';
-        if (v && typeof v === 'object' && typeof v.seconds === 'number') return 'timestamp';
-        if (typeof v === 'object') return 'map';
-        return 'string';
-    }
-
-    function encodeDataValue(v) {
-        try {
-            return escapeHtml(JSON.stringify(v));
-        } catch (e) {
-            return escapeHtml(JSON.stringify(String(v)));
-        }
-    }
-
-    function renderQuickCell(docId, field, value) {
-        const type = inferFieldType(value);
-        return `<td class="bomff-quick-cell" title="Double-click to quick edit" data-doc-id="${escapeHtml(docId)}" data-field="${escapeHtml(field)}" data-type="${escapeHtml(type)}" data-value="${encodeDataValue(value)}">${compactValue(value)}</td>`;
-    }
-
-    function clearTable(message) {
-        if (!resultsBodyEl) return;
-        resultsBodyEl.innerHTML = `
-      <tr>
-        <td colspan="3" style="text-align:center;color:#666;">
-          ${escapeHtml(message)}
-        </td>
-      </tr>
-    `;
-    }
-
-    function openJsonModal(data) {
-        if (!jsonModal || !jsonContent) return;
-        jsonContent.textContent = safeJsonStringify(data);
-        openModal(jsonModal);
-    }
-
-    let currentColumns = [];
-    let showExtrasColumn = true;
-
-    function detectColumnsFromDocs(docs) {
-        const columns = new Set();
-        docs.forEach((doc) => {
-            const data = doc.data() || {};
-            Object.keys(data).forEach((k) => {
-                if (isLikelyNoisyField(k)) return;
-                columns.add(k);
             });
-        });
-
-        return Array.from(columns).sort((a, b) =>
-            a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
-        );
-    }
-
-    function renderExtrasCell(data, usedSet) {
-        const keys = Object.keys(data || {}).filter((k) => !usedSet.has(k));
-        if (!keys.length) return '—';
-        const chips = keys.slice(0, 6).map((k) => `<span class="bomff-chip" title="${escapeHtml(k)}">${escapeHtml(k)}</span>`);
-        const more = keys.length > 6 ? `<span class="bomff-chip">+${keys.length - 6}</span>` : '';
-        return chips.join('') + more;
-    }
-
-
-    let activeFieldEdit = null;
-
-    function setFieldError(message) {
-        if (!fieldErrorEl) return;
-        fieldErrorEl.textContent = message || '';
-        fieldErrorEl.style.display = message ? '' : 'none';
-    }
-
-    function setQuickInputValue(value) {
-        const input = document.getElementById('bomff-field-value');
-        if (input) input.value = value;
-    }
-
-    function getQuickInputValue() {
-        const input = document.getElementById('bomff-field-value');
-        return input ? input.value : '';
-    }
-
-    function applyStringTransform(transform) {
-        const current = getQuickInputValue();
-        if (transform === 'upper') setQuickInputValue(current.toUpperCase());
-        if (transform === 'lower') setQuickInputValue(current.toLowerCase());
-        if (transform === 'capitalize') {
-            setQuickInputValue(current.replace(/(^|\s)(\S)/g, (match, space, char) => space + char.toUpperCase()));
-        }
-        if (transform === 'trim') setQuickInputValue(current.trim());
-    }
-
-    function applyNumberTransform(mode) {
-        const current = parseFloat(getQuickInputValue());
-        const amount = parseFloat(document.getElementById('bomff-field-number-amount')?.value || '0');
-        if (!Number.isFinite(current) || !Number.isFinite(amount)) return;
-        let next = current;
-        if (mode === 'add') next = current + amount;
-        if (mode === 'subtract') next = current - amount;
-        if (mode === 'percent_add') next = current + (current * amount / 100);
-        if (mode === 'percent_subtract') next = current - (current * amount / 100);
-        setQuickInputValue(Number.isInteger(next) ? String(next) : String(Number(next.toFixed(6))));
-    }
-
-    function renderFieldEditor(value, type) {
-        if (!fieldEditorEl || !fieldActionsEl) return;
-        fieldActionsEl.innerHTML = '';
-
-        if (type === 'string') {
-            fieldEditorEl.innerHTML = `
-                <div class="bomff-field">
-                    <label for="bomff-field-value">Value</label>
-                    <textarea id="bomff-field-value" rows="5" spellcheck="false">${escapeHtml(String(value || ''))}</textarea>
-                </div>
-            `;
-            fieldActionsEl.innerHTML = `
-                <button class="button" type="button" data-string-action="upper">UPPERCASE</button>
-                <button class="button" type="button" data-string-action="lower">lowercase</button>
-                <button class="button" type="button" data-string-action="capitalize">Capitalize</button>
-                <button class="button" type="button" data-string-action="trim">Trim</button>
-            `;
-            fieldActionsEl.querySelectorAll('[data-string-action]').forEach((btn) => {
-                btn.addEventListener('click', () => applyStringTransform(btn.dataset.stringAction));
-            });
-            return;
-        }
-
-        if (type === 'number') {
-            fieldEditorEl.innerHTML = `
-                <div class="bomff-field">
-                    <label for="bomff-field-value">Value</label>
-                    <input id="bomff-field-value" type="number" step="any" value="${escapeHtml(String(value ?? 0))}" />
-                </div>
-            `;
-            fieldActionsEl.innerHTML = `
-                <input id="bomff-field-number-amount" type="number" step="any" value="10" class="bomff-inline-number" />
-                <button class="button" type="button" data-number-action="add">Add</button>
-                <button class="button" type="button" data-number-action="subtract">Subtract</button>
-                <button class="button" type="button" data-number-action="percent_add">Add %</button>
-                <button class="button" type="button" data-number-action="percent_subtract">Subtract %</button>
-            `;
-            fieldActionsEl.querySelectorAll('[data-number-action]').forEach((btn) => {
-                btn.addEventListener('click', () => applyNumberTransform(btn.dataset.numberAction));
-            });
-            return;
-        }
-
-        if (type === 'boolean') {
-            fieldEditorEl.innerHTML = `
-                <div class="bomff-field">
-                    <label for="bomff-field-value">Value</label>
-                    <select id="bomff-field-value">
-                        <option value="true" ${value === true ? 'selected' : ''}>true</option>
-                        <option value="false" ${value === false ? 'selected' : ''}>false</option>
-                    </select>
-                </div>
-            `;
-            return;
-        }
-
-        if (type === 'array') {
-            const items = Array.isArray(value) ? value : [];
-            const renderArrayItem = (item) => {
-                const itemType = inferFieldType(item);
-                const raw = itemType === 'string' ? String(item) : safeJsonStringify(item);
-                return `
-                    <div class="bomff-array-item">
-                        <input type="text" class="bomff-array-value" data-item-type="${escapeHtml(itemType)}" value="${escapeHtml(raw)}" />
-                        <button class="button bomff-array-remove" type="button">Remove</button>
-                    </div>
-                `;
-            };
-            fieldEditorEl.innerHTML = `
-                <div class="bomff-field">
-                    <label>Array items</label>
-                    <div id="bomff-array-items">${items.map(renderArrayItem).join('')}</div>
-                    <button id="bomff-array-add" class="button" type="button">+ Add item</button>
-                    <div class="bomff-muted bomff-mt-10">Simple values are easier to edit here. Objects/maps can still be edited by writing valid JSON in the item field.</div>
-                </div>
-            `;
-            const list = fieldEditorEl.querySelector('#bomff-array-items');
-            const bindRemove = () => {
-                fieldEditorEl.querySelectorAll('.bomff-array-remove').forEach((btn) => {
-                    if (btn.dataset.bound) return;
-                    btn.dataset.bound = '1';
-                    btn.addEventListener('click', () => btn.closest('.bomff-array-item')?.remove());
-                });
-            };
-            bindRemove();
-            const addBtn = fieldEditorEl.querySelector('#bomff-array-add');
-            if (addBtn && list) {
-                addBtn.addEventListener('click', () => {
-                    list.insertAdjacentHTML('beforeend', `
-                        <div class="bomff-array-item">
-                            <input type="text" class="bomff-array-value" data-item-type="string" value="" />
-                            <button class="button bomff-array-remove" type="button">Remove</button>
-                        </div>
-                    `);
-                    bindRemove();
-                });
-            }
-            return;
-        }
-
-        fieldEditorEl.innerHTML = `
-            <div class="bomff-field">
-                <label for="bomff-field-value">JSON value</label>
-                <textarea id="bomff-field-value" rows="8" spellcheck="false" class="bomff-code-textarea">${escapeHtml(safeJsonStringify(value))}</textarea>
-                <div class="bomff-muted">This field type is edited as JSON.</div>
-            </div>
-        `;
-    }
-
-    function parseQuickFieldValue(type) {
-        const raw = getQuickInputValue();
-        if (type === 'string') return raw;
-        if (type === 'number') {
-            const n = parseFloat(raw);
-            if (!Number.isFinite(n)) throw new Error('Invalid number.');
-            return n;
-        }
-        if (type === 'boolean') return raw === 'true';
-        if (type === 'array') {
-            return Array.from(document.querySelectorAll('#bomff-array-items .bomff-array-value')).map((input) => {
-                const itemType = input.dataset.itemType || 'string';
-                const value = input.value;
-                if (itemType === 'string') return value;
-                if (value === '') return '';
-                try { return safeJsonParse(value); } catch (e) { return value; }
-            });
-        }
-        if (type === 'null') return raw ? safeJsonParse(raw) : null;
-        return safeJsonParse(raw);
-    }
-
-    function openFieldModal(docId, field, value, type) {
-        if (!fieldModal || !fieldEditorEl) return;
-        activeFieldEdit = { docId, field, type };
-        if (fieldDocIdEl) fieldDocIdEl.textContent = docId;
-        if (fieldNameEl) fieldNameEl.textContent = field;
-        if (fieldTypeEl) fieldTypeEl.textContent = type;
-        setFieldError('');
-        renderFieldEditor(value, type);
-        openModal(fieldModal);
-    }
-
-    async function saveFieldModal() {
-        if (!activeFieldEdit || !currentCollection) return;
-        const { docId, field, type } = activeFieldEdit;
-        let value;
-        try {
-            value = parseQuickFieldValue(type);
-        } catch (e) {
-            setFieldError(e.message || String(e));
-            return;
-        }
-
-        try {
-            if (btnFieldSave) btnFieldSave.disabled = true;
-            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
-                op: 'update_field',
-                collection: currentCollection,
-                docId,
-                field,
-                data: { [field]: value }
-            }));
-
-            await db.collection(currentCollection).doc(docId).set({ [field]: value }, { merge: true });
-
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'update_field',
-                collection: currentCollection,
-                docId,
-                field,
-                ok: true
-            }));
-
-            closeModal(fieldModal);
-            setMsg(UI_TEXT.fieldSaved, true);
-            await loadPage('init');
-        } catch (e) {
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'update_field',
-                collection: currentCollection,
-                docId,
-                field,
-                ok: false,
-                error: e && e.message ? e.message : String(e)
-            }));
-            setFieldError(UI_TEXT.fieldSaveError(e.message));
-        } finally {
-            if (btnFieldSave) btnFieldSave.disabled = false;
-        }
-    }
-
-    async function duplicateDoc(col, id) {
-        if (!col || !id) return;
-        try {
-            const original = await db.collection(col).doc(id).get();
-            if (!original.exists) {
-                alert(UI_TEXT.docNotFound);
-                return;
-            }
-            const data = original.data() || {};
-            const requested = prompt(UI_TEXT.duplicatePrompt(id), `${id}-copy`);
-            if (requested === null) return;
-            const newId = String(requested || '').trim();
-            if (newId && newId === id) {
-                alert(UI_TEXT.duplicateSameId);
-                return;
-            }
-
-            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
-                op: 'duplicate',
-                collection: col,
-                docId: id,
-                targetDocId: newId || null,
-                data
-            }));
-
-            if (newId) {
-                await db.collection(col).doc(newId).set(data, { merge: false });
-            } else {
-                await db.collection(col).add(data);
-            }
-
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'duplicate',
-                collection: col,
-                docId: id,
-                targetDocId: newId || null,
-                ok: true
-            }));
-
-            setMsg(UI_TEXT.duplicateDone, true);
-            await loadPage('init');
-        } catch (e) {
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'duplicate',
-                collection: col,
-                docId: id,
-                ok: false,
-                error: e && e.message ? e.message : String(e)
-            }));
-            alert(UI_TEXT.duplicateError(e.message));
-        }
-    }
-
-    async function deleteDoc(col, id) {
-        const ok = confirm(UI_TEXT.confirmDelete(id));
-        if (!ok) return;
-
-        try {
-            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
-                op: 'delete',
-                collection: col,
-                docId: id
-            }));
-
-            await db.collection(col).doc(id).delete();
-
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'delete',
-                collection: col,
-                docId: id,
-                ok: true
-            }));
-
-            await loadPage('init');
-        } catch (e) {
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'delete',
-                collection: col,
-                docId: id,
-                ok: false,
-                error: e && e.message ? e.message : String(e)
-            }));
-
-            alert(UI_TEXT.deleteError(e.message));
-        }
-    }
-
-
-    function normalizeEditFieldValue(value) {
-        if (value && typeof value === 'object' && typeof value.toDate === 'function') {
-            return {
-                _type: 'timestamp',
-                seconds: value.seconds,
-                nanoseconds: value.nanoseconds || 0
-            };
-        }
-        return value;
-    }
-
-    function renderEditFieldInput(key, value) {
-        const cleanValue = normalizeEditFieldValue(value);
-        const type = detectType(cleanValue);
-        const id = 'bomff-edit-field-' + String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
-        const label = `<label for="${escapeHtml(id)}"><code>${escapeHtml(key)}</code> <span class="bomff-muted">${escapeHtml(type)}</span></label>`;
-        const encodedKey = escapeHtml(key);
-
-        if (type === 'boolean') {
-            return `
-                <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="boolean">
-                    ${label}
-                    <select id="${escapeHtml(id)}" class="bomff-edit-input">
-                        <option value="true" ${cleanValue ? 'selected' : ''}>true</option>
-                        <option value="false" ${!cleanValue ? 'selected' : ''}>false</option>
-                    </select>
-                </div>`;
-        }
-
-        if (type === 'number') {
-            return `
-                <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="number">
-                    ${label}
-                    <input id="${escapeHtml(id)}" class="bomff-edit-input regular-text" type="number" step="any" value="${escapeHtml(cleanValue)}" />
-                </div>`;
-        }
-
-        if (type === 'array') {
-            const items = Array.isArray(cleanValue) ? cleanValue : [];
-            const simple = items.every((item) => item === null || ['string','number','boolean'].includes(typeof item));
-            if (simple) {
-                const itemRows = items.map((item) => `
-                    <div class="bomff-array-item">
-                        <input type="text" class="regular-text bomff-edit-array-value" value="${escapeHtml(item === null ? '' : item)}" data-original-type="${escapeHtml(item === null ? 'string' : typeof item)}" />
-                        <button type="button" class="button bomff-edit-array-remove">Remove</button>
-                    </div>`).join('');
-                return `
-                    <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="array-simple">
-                        ${label}
-                        <div class="bomff-edit-array-items">${itemRows}</div>
-                        <button type="button" class="button bomff-edit-array-add">+ Add item</button>
-                    </div>`;
-            }
-        }
-
-        if (type === 'map' || type === 'array' || type === 'timestamp') {
-            return `
-                <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="json">
-                    ${label}
-                    <textarea class="bomff-edit-input bomff-code-textarea" rows="5" spellcheck="false">${escapeHtml(safeJsonStringify(cleanValue))}</textarea>
-                </div>`;
-        }
-
-        return `
-            <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="string">
-                ${label}
-                <input id="${escapeHtml(id)}" class="bomff-edit-input regular-text" type="text" value="${escapeHtml(cleanValue === null || typeof cleanValue === 'undefined' ? '' : cleanValue)}" />
-            </div>`;
-    }
-
-    function bindEditArrayControls() {
-        if (!editFieldsEl) return;
-        editFieldsEl.querySelectorAll('.bomff-edit-array-remove').forEach((btn) => {
-            btn.addEventListener('click', () => btn.closest('.bomff-array-item')?.remove());
-        });
-        editFieldsEl.querySelectorAll('.bomff-edit-array-add').forEach((btn) => {
-            btn.addEventListener('click', () => {
-                const wrap = btn.closest('.bomff-edit-field-row');
-                const list = wrap ? wrap.querySelector('.bomff-edit-array-items') : null;
-                if (!list) return;
-                const row = document.createElement('div');
-                row.className = 'bomff-array-item';
-                row.innerHTML = '<input type="text" class="regular-text bomff-edit-array-value" value="" data-original-type="string" /> <button type="button" class="button bomff-edit-array-remove">Remove</button>';
-                list.appendChild(row);
-                const remove = row.querySelector('.bomff-edit-array-remove');
-                if (remove) remove.addEventListener('click', () => row.remove());
-            });
-        });
-    }
-
-    function renderEditFields(data) {
-        if (!editFieldsEl) return;
-        const keys = Object.keys(data || {}).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
-        editFieldsEl.innerHTML = keys.length ? keys.map((key) => renderEditFieldInput(key, data[key])).join('') : '<p class="bomff-muted">This document has no fields yet. Use Advanced JSON below.</p>';
-        bindEditArrayControls();
-    }
-
-    function castEditArrayValue(raw, originalType) {
-        if (originalType === 'number' && raw !== '') {
-            const n = Number(raw);
-            return Number.isNaN(n) ? raw : n;
-        }
-        if (originalType === 'boolean') return raw === 'true' || raw === '1';
-        return raw;
-    }
-
-    function collectEditFields() {
-        if (!editFieldsEl) return null;
-        const out = {};
-        editFieldsEl.querySelectorAll('.bomff-edit-field-row').forEach((row) => {
-            const field = row.dataset.field;
-            const type = row.dataset.type;
-            if (!field) return;
-            if (type === 'array-simple') {
-                out[field] = Array.from(row.querySelectorAll('.bomff-edit-array-value')).map((input) => castEditArrayValue(input.value, input.dataset.originalType || 'string'));
-                return;
-            }
-            const input = row.querySelector('.bomff-edit-input');
-            if (!input) return;
-            if (type === 'number') {
-                out[field] = input.value === '' ? null : Number(input.value);
-            } else if (type === 'boolean') {
-                out[field] = input.value === 'true';
-            } else if (type === 'json') {
-                out[field] = safeJsonParse(input.value || 'null');
-            } else {
-                out[field] = input.value;
-            }
-        });
-        return out;
-    }
-
-    async function openEditModal(col, id) {
-        if (!editModal || !editJsonEl || !editCollectionEl || !editDocIdEl) return;
-        editErrorEl.style.display = 'none';
-        editErrorEl.textContent = '';
-
-        try {
-            const doc = await db.collection(col).doc(id).get();
-            if (!doc.exists) {
-                alert(UI_TEXT.docNotFound);
-                return;
-            }
-            editCollectionEl.textContent = col;
-            editDocIdEl.textContent = id;
-            const editData = doc.data() || {};
-            editJsonEl.value = safeJsonStringify(editData);
-            renderEditFields(editData);
-            editModal.dataset.collection = col;
-            editModal.dataset.docid = id;
-            openModal(editModal);
-        } catch (e) {
-            alert(UI_TEXT.docLoadError(e.message));
-        }
-    }
-
-    async function saveEditModal() {
-        if (!editModal) return;
-        const col = editModal.dataset.collection;
-        const id = editModal.dataset.docid;
-        if (!col || !id) return;
-
-        let obj;
-        try {
-            obj = collectEditFields() || safeJsonParse(editJsonEl.value || '{}');
-            if (editJsonEl) editJsonEl.value = safeJsonStringify(obj);
-        } catch (e) {
-            editErrorEl.style.display = '';
-            editErrorEl.textContent = UI_TEXT.jsonInvalid(e.message);
-            return;
-        }
-
-        try {
-            btnEditSave.disabled = true;
-
-            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
-                op: 'update',
-                collection: col,
-                docId: id,
-                data: obj
-            }));
-
-            await db.collection(col).doc(id).set(obj, {
-                merge: false
-            });
-
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'update',
-                collection: col,
-                docId: id,
-                ok: true
-            }));
-
-            closeModal(editModal);
-            await loadPage('init');
-        } catch (e) {
-            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
-                op: 'update',
-                collection: col,
-                docId: id,
-                ok: false,
-                error: e && e.message ? e.message : String(e)
-            }));
-
-            editErrorEl.style.display = '';
-            editErrorEl.textContent = UI_TEXT.saveError(e.message);
-        } finally {
-            btnEditSave.disabled = false;
-        }
-    }
-
-    function renderRows(docs) {
-        if (!resultsBodyEl) return;
-        resultsBodyEl.innerHTML = '';
-
-        if (!currentColumns.length) {
-            currentColumns = detectColumnsFromDocs(docs);
-            const headRow = document.getElementById('bomff-results-head-row');
-            if (headRow) {
-                const cols = currentColumns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
-                headRow.innerHTML = `
-          <th>Doc ID</th>
-          ${cols}
-          ${showExtrasColumn ? '<th>Other</th>' : ''}
-          <th class="bomff-col-actions">Actions</th>
-        `;
-            }
-        }
-
-        docs.forEach((doc) => {
-            const data = doc.data() || {};
-            const used = new Set(currentColumns);
-
-            const tds = [];
-            tds.push(`<td><code>${escapeHtml(doc.id)}</code></td>`);
-
-            currentColumns.forEach((field) => {
-                tds.push(renderQuickCell(doc.id, field, data[field]));
-            });
-
-            if (showExtrasColumn) {
-                tds.push(`<td>${renderExtrasCell(data, used)}</td>`);
-            }
-
-            tds.push(`
-        <td class="bomff-col-actions">
-          <button class="button bomff-duplicate-doc" type="button">Duplicate</button>
-          <button class="button bomff-edit-doc" type="button">Edit</button>
-          <button class="button bomff-del-doc" type="button">Delete</button>
-        </td>
-      `);
-
-            const tr = document.createElement('tr');
-			tr.dataset.docId = doc.id;
-            tr.innerHTML = tds.join('');
-
-            const duplicateBtn = tr.querySelector('.bomff-duplicate-doc');
-            if (duplicateBtn) duplicateBtn.addEventListener('click', () => duplicateDoc(currentCollection, doc.id));
-
-            const editBtn = tr.querySelector('.bomff-edit-doc');
-            if (editBtn) editBtn.addEventListener('click', () => openEditModal(currentCollection, doc.id));
-
-            const delBtn = tr.querySelector('.bomff-del-doc');
-            if (delBtn) delBtn.addEventListener('click', () => deleteDoc(currentCollection, doc.id));
-
-            tr.querySelectorAll('.bomff-quick-cell').forEach((cell) => {
-                cell.addEventListener('dblclick', () => {
-                    let value = null;
-                    try {
-                        value = JSON.parse(cell.dataset.value || 'null');
-                    } catch (e) {
-                        value = cell.dataset.value || '';
-                    }
-                    openFieldModal(cell.dataset.docId, cell.dataset.field, value, cell.dataset.type);
-                });
-            });
-
-            resultsBodyEl.appendChild(tr);
-        });
-    }
-
-    const pageSizeSelect = document.getElementById('bomff-page-size');
-    const prevBtn = document.getElementById('bomff-prev-page');
-    const nextBtn = document.getElementById('bomff-next-page');
-    const msgEl = document.getElementById('bomff-collection-msg');
-    const docIdInput = document.getElementById('bomff-doc-id');
-    const loadDocBtn = document.getElementById('bomff-load-doc');
-    const clearBtn = document.getElementById('bomff-clear-results');
-
-    let pageSize = 25;
-    let lastVisibleDoc = null;
-    let cursorStack = [];
-
-    function setMsg(text, ok = true) {
-        if (!msgEl) return;
-        msgEl.textContent = text;
-        msgEl.style.color = ok ? 'green' : 'red';
-    }
-
-    async function loadPage(direction = 'init') {
-        if (!currentCollection) return;
-
-        pageSize = parseInt(pageSizeSelect.value, 10) || 25;
-
-        let query = db
-            .collection(currentCollection)
-            .orderBy(firebase.firestore.FieldPath.documentId())
-            .limit(pageSize);
-
-        if (direction === 'next' && lastVisibleDoc) {
-            cursorStack.push(lastVisibleDoc);
-            query = query.startAfter(lastVisibleDoc);
-        }
-
-        if (direction === 'prev' && cursorStack.length) {
-            const prevCursor = cursorStack.pop();
-            query = query.startAt(prevCursor);
-        }
-
-        setMsg(UI_TEXT.loadingCollection(currentCollection), true);
-
-        try {
-            const snap = await query.get();
-            if (snap.empty) {
-                clearTable(UI_TEXT.noDocsOrNoPerm);
-                setMsg(UI_TEXT.noResults, true);
-                prevBtn.disabled = cursorStack.length === 0;
-                nextBtn.disabled = true;
-                return;
-            }
-
-            lastVisibleDoc = snap.docs[snap.docs.length - 1];
-
-            if (direction === 'init') currentColumns = [];
-            renderRows(snap.docs);
-
-            prevBtn.disabled = cursorStack.length === 0;
-            nextBtn.disabled = snap.docs.length < pageSize;
-
-            setMsg(UI_TEXT.loadedCount(snap.docs.length), true);
-        } catch (e) {
-            console.error(e);
-            setMsg(UI_TEXT.loadError(e.message), false);
-            clearTable(UI_TEXT.errorLoadingDocs);
-        }
-
-        // Enable Create only if it matches the active structure collection
-        if (btnCreateDoc && activeStructure && activeStructure.collection) {
-            btnCreateDoc.disabled = !(currentCollection === activeStructure.collection);
-        }
-    }
-
-    // ---------------------------
-    // Explorer events
-    // ---------------------------
-    if (loadCollectionBtn) {
-        loadCollectionBtn.addEventListener('click', () => {
-            const name = (collectionInputEl.value || '').trim();
-            if (!name) {
-                setMsg(UI_TEXT.enterCollection, false);
-                return;
-            }
-
-            currentCollection = name;
-            saveCollectionName(currentCollection);
-			
-			window.bomffFirebaseConfig = window.bomffFirebaseConfig || {};
-			window.bomffFirebaseConfig.collectionPath = currentCollection;
-
-            cursorStack = [];
-            lastVisibleDoc = null;
-            currentColumns = [];
-            showExtrasColumn = true;
-
-            clearTable(UI_TEXT.tableLoading);
-            loadPage('init');
-
-            if (btnCreateDoc && activeStructure && activeStructure.collection) {
-                btnCreateDoc.disabled = !(currentCollection === activeStructure.collection);
-            }
-        });
-    }
-
-    if (nextBtn) nextBtn.addEventListener('click', () => loadPage('next'));
-    if (prevBtn) prevBtn.addEventListener('click', () => loadPage('prev'));
-
-    if (loadDocBtn && docIdInput) {
-        loadDocBtn.addEventListener('click', async () => {
-            const id = (docIdInput.value || '').trim();
-            if (!currentCollection) {
-                setMsg(UI_TEXT.loadCollectionFirst, false);
-                return;
-            }
-            if (!id) {
-                setMsg(UI_TEXT.enterDocId, false);
-                return;
-            }
-
-            setMsg(UI_TEXT.loadingDoc(id), true);
 
             try {
-                const doc = await db.collection(currentCollection).doc(id).get();
-                if (!doc.exists) {
-                    setMsg(UI_TEXT.docNotFound, false);
-                    clearTable(UI_TEXT.docNotFound);
+                const saved = window.localStorage.getItem('bomff_last_collection');
+                if (saved && !collectionInputEl.value) collectionInputEl.value = saved;
+            } catch (e) {}
+        }
+
+        if (nextPageBtn) {
+            nextPageBtn.addEventListener('click', () => {
+                if (!nextPageToken) return;
+                pageStack.push(currentPageToken || '');
+                loadCollection(nextPageToken);
+            });
+        }
+
+        if (prevPageBtn) {
+            prevPageBtn.addEventListener('click', () => {
+                const prevToken = pageStack.pop();
+                loadCollection(prevToken || '');
+            });
+        }
+
+        if (resultsBodyEl) {
+            resultsBodyEl.addEventListener('click', (event) => {
+                const button = event.target.closest('button[data-action]');
+                if (!button) return;
+
+                const action = button.dataset.action;
+                const docId = button.dataset.docId;
+
+                if (!docId) return;
+
+                if (action === 'view') viewDocument(docId);
+                if (action === 'edit') editDocument(docId);
+                if (action === 'delete') deleteDocument(docId);
+            });
+        }
+
+        if (importStructureBtn) importStructureBtn.addEventListener('click', importStructure);
+        if (viewStructureBtn) viewStructureBtn.addEventListener('click', viewStructure);
+        if (deleteStructureBtn) deleteStructureBtn.addEventListener('click', deleteStructure);
+
+        if (createDocBtn) {
+            createDocBtn.addEventListener('click', () => {
+                const collection = activeStructure && activeStructure.collection ? activeStructure.collection : (collectionInputEl?.value || '').trim();
+                const docId = prompt('New document ID:');
+                if (!docId) return;
+                const json = prompt('Document JSON:', '{}');
+                if (json === null) return;
+
+                try {
+                    JSON.parse(json);
+                } catch (e) {
+                    setStructureMessage(`Invalid JSON: ${e.message}`, false);
                     return;
                 }
 
-                currentColumns = detectColumnsFromDocs([doc]);
-                renderRows([doc]);
-                prevBtn.disabled = cursorStack.length === 0;
-                nextBtn.disabled = true;
+                currentCollection = collection;
+                if (collectionInputEl) collectionInputEl.value = collection;
 
-                setMsg(UI_TEXT.loadedOne, true);
-            } catch (e) {
-                console.error(e);
-                setMsg(UI_TEXT.loadError(e.message), false);
-            }
-        });
-    }
-
-    if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
-            currentCollection = null;
-            cursorStack = [];
-            lastVisibleDoc = null;
-            currentColumns = [];
-            showExtrasColumn = true;
-
-            const headRow = document.getElementById('bomff-results-head-row');
-            if (headRow) {
-                headRow.innerHTML = `
-          <th>Doc ID</th>
-          <th>Fields</th>
-          <th class="bomff-col-actions">Actions</th>
-        `;
-            }
-            clearTable(UI_TEXT.tableEmptyHint);
-            if (msgEl) msgEl.textContent = '';
-            if (collectionInputEl) collectionInputEl.value = '';
-            if (docIdInput) docIdInput.value = '';
-            if (prevBtn) prevBtn.disabled = true;
-            if (nextBtn) nextBtn.disabled = true;
-
-            if (btnCreateDoc) btnCreateDoc.disabled = true;
-        });
-    }
-
-    // ---------------------------
-    // Modal events (do NOT close on outside click)
-    // ---------------------------
-    if (btnFieldSave) btnFieldSave.addEventListener('click', saveFieldModal);
-    if (btnFieldCancel && fieldModal) btnFieldCancel.addEventListener('click', () => closeModal(fieldModal));
-    if (btnFieldCloseX && fieldModal) btnFieldCloseX.addEventListener('click', () => closeModal(fieldModal));
-
-    function bindJsonClose() {
-        if (btnJsonClose && jsonModal) btnJsonClose.addEventListener('click', () => closeModal(jsonModal));
-        if (btnJsonCloseX && jsonModal) btnJsonCloseX.addEventListener('click', () => closeModal(jsonModal));
-
-        if (btnJsonCopy && jsonContent) {
-            btnJsonCopy.addEventListener('click', async () => {
-                try {
-                    await navigator.clipboard.writeText(jsonContent.textContent || '');
-                } catch {
-                    alert(UI_TEXT.copyError);
-                }
-            });
-        }
-        if (btnJsonDownload && jsonContent) {
-            btnJsonDownload.addEventListener('click', () => {
-                const blob = new Blob([jsonContent.textContent || ''], {
-                    type: 'application/json'
-                });
-                const a = document.createElement('a');
-                a.href = URL.createObjectURL(blob);
-                a.download = 'document.json';
-                a.click();
+                wpAjax('bomff_save_document', {
+                    collection,
+                    docId,
+                    data: json,
+                })
+                    .then(() => {
+                        setStructureMessage('Document created.', true);
+                        return loadCollection('');
+                    })
+                    .catch((e) => {
+                        console.error(e);
+                        setStructureMessage(e.message || 'Could not create document.', false);
+                    });
             });
         }
     }
 
-    function bindEditModal() {
-        if (btnEditCancel && editModal) btnEditCancel.addEventListener('click', () => closeModal(editModal));
-        if (btnEditCloseX && editModal) btnEditCloseX.addEventListener('click', () => closeModal(editModal));
-        if (btnEditSave) btnEditSave.addEventListener('click', saveEditModal);
-    }
+    async function init() {
+        if (!statusConnectionEl && !collectionInputEl) return;
 
-    function bindStructureViewModal() {
-        if (btnStructureViewClose && structureViewModal) btnStructureViewClose.addEventListener('click', () => closeModal(structureViewModal));
-        if (btnStructureViewCloseX && structureViewModal) btnStructureViewCloseX.addEventListener('click', () => closeModal(structureViewModal));
-        if (btnViewStructure) {
-            btnViewStructure.addEventListener('click', () => {
-                if (!activeStructure) return;
-                renderStructureViewModal();
-                openModal(structureViewModal);
-            });
-        }
-    }
-
-    // ---------------------------
-    // Import structure (modal)
-    // ---------------------------
-    async function startImportStructure() {
-        if (!currentCollection) {
-            setStructureMsg(UI_TEXT.structureImportNeedCollection, false);
-            return;
-        }
-
-        if (structureModalCollectionEl) structureModalCollectionEl.textContent = currentCollection;
-        if (structureDetectedEl) structureDetectedEl.innerHTML = '';
-        btnStructureSave.disabled = true;
-
-        openModal(structureModal);
+        bindEvents();
+        setExplorerEnabled(false);
 
         try {
-            setStructureMsg(UI_TEXT.structureAnalyzing(currentCollection), true);
-            detectedFieldsBuffer = await importStructureFromCollection(currentCollection);
-
-            if (!detectedFieldsBuffer.length) {
-                setStructureMsg(UI_TEXT.structureNoDocs, false);
-                closeModal(structureModal);
+            const status = await wpAjax('bomff_get_status', {});
+            if (!status.configured) {
+                setConnectionStatus('Not configured', false);
+                showConfigWarning(true);
+                clearTable('Configure Firebase first.');
                 return;
             }
 
-            renderDetectedFieldsForModal(detectedFieldsBuffer);
-            btnStructureSave.disabled = false;
+            setConnectionStatus(`Connected to ${status.projectId || 'Firebase'}`, true);
+            showConfigWarning(false);
+            setExplorerEnabled(true);
+            if (nextPageBtn) nextPageBtn.disabled = true;
+            if (prevPageBtn) prevPageBtn.disabled = true;
+            await loadStructure();
         } catch (e) {
             console.error(e);
-            setStructureMsg(UI_TEXT.structureImportError(e.message), false);
-            closeModal(structureModal);
+            setConnectionStatus(e.message || 'Could not connect to Firebase.', false);
+            showConfigWarning(true);
+            clearTable('Could not connect to Firebase.');
         }
     }
 
-    async function confirmAndSaveStructure() {
-        if (!currentCollection) return;
-
-        const selected = getSelectedFieldsFromModal(detectedFieldsBuffer);
-        if (!selected.length) {
-            alert(UI_TEXT.structureSelectAtLeastOne);
-            return;
-        }
-
-        if (activeStructure && activeStructure.collection && activeStructure.collection !== currentCollection) {
-            const ok = confirm(UI_TEXT.structureReplaceConfirmDifferent(activeStructure.collection, currentCollection));
-            if (!ok) return;
-        } else if (activeStructure && activeStructure.collection === currentCollection) {
-            const ok = confirm(UI_TEXT.structureReplaceConfirmSame);
-            if (!ok) return;
-        }
-
-        try {
-            btnStructureSave.disabled = true;
-            await saveActiveStructureToWP({
-                collection: currentCollection,
-                fields: selected
-            });
-            closeModal(structureModal);
-
-            if (btnCreateDoc) btnCreateDoc.disabled = !(currentCollection === activeStructure.collection);
-            setStructureMsg(UI_TEXT.structureSaved, true);
-        } catch (e) {
-            alert(UI_TEXT.structureSaveError(e.message));
-        } finally {
-            btnStructureSave.disabled = false;
-        }
-    }
-
-    function bindStructureModal() {
-        if (btnImportStructure) btnImportStructure.addEventListener('click', startImportStructure);
-        if (btnStructureCancel) btnStructureCancel.addEventListener('click', () => closeModal(structureModal));
-        if (btnStructureCloseX) btnStructureCloseX.addEventListener('click', () => closeModal(structureModal));
-        if (btnStructureSave) btnStructureSave.addEventListener('click', confirmAndSaveStructure);
-
-        if (btnDeleteStructure) {
-            btnDeleteStructure.addEventListener('click', async () => {
-                const ok = confirm(UI_TEXT.structureDeleteConfirm);
-                if (!ok) return;
-                try {
-                    await deleteActiveStructureFromWP();
-                    if (btnCreateDoc) btnCreateDoc.disabled = true;
-                    setStructureMsg(UI_TEXT.structureDeleted, true);
-                } catch (e) {
-                    alert(UI_TEXT.structureDeleteError(e.message));
-                }
-            });
-        }
-    }
-
-    // ---------------------------
-    // Create document modal
-    // ---------------------------
-    function openCreateDocModal() {
-        if (!activeStructure || !activeStructure.collection) {
-            setStructureMsg(UI_TEXT.createNoStructure, false);
-            return;
-        }
-        if (!currentCollection || currentCollection !== activeStructure.collection) {
-            setStructureMsg(UI_TEXT.createNeedLoadCollection(activeStructure.collection), false);
-            return;
-        }
-
-        if (createCollectionEl) createCollectionEl.textContent = activeStructure.collection;
-        setCreateError('');
-        buildCreateForm(activeStructure.fields || []);
-        openModal(createModal);
-    }
-
-    function bindCreateModal() {
-        if (btnCreateDoc) btnCreateDoc.addEventListener('click', openCreateDocModal);
-        if (btnCreateCancel) btnCreateCancel.addEventListener('click', () => closeModal(createModal));
-        if (btnCreateCloseX) btnCreateCloseX.addEventListener('click', () => closeModal(createModal));
-        if (btnCreateSave) btnCreateSave.addEventListener('click', handleCreateDocument);
-    }
-
-    // ---------------------------
-    // Bind once + auth gate
-    // ---------------------------
-    function bindFirestoreOnce() {
-        if (!isFirestorePage) return;
-        if (bindFirestoreOnce._bound) return;
-        bindFirestoreOnce._bound = true;
-
-        bindJsonClose();
-        bindEditModal();
-        bindStructureModal();
-        bindStructureViewModal();
-        bindCreateModal();
-
-        clearTable(UI_TEXT.tableEmptyHint);
-    }
-
-    auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            setAuthStatus(UI_TEXT.authenticatedAs(user.email), true);
-            setAuthUiSignedIn(user);
-            setExplorerEnabled(true);
-            bindFirestoreOnce();
-            await loadActiveStructureFromWP();
-
-            // Auto-load the last used collection when returning to Firestore.
-            // This keeps the 0.2 UX simple: if a collection was remembered,
-            // the user lands directly on its documents without pressing Load.
-            if (isFirestorePage && collectionInputEl && loadCollectionBtn) {
-                const savedCollectionName = (collectionInputEl.value || getSavedCollectionName() || '').trim();
-                if (savedCollectionName && !currentCollection) {
-                    collectionInputEl.value = savedCollectionName;
-                    loadCollectionBtn.click();
-                }
-            }
-        } else {
-            setAuthStatus(UI_TEXT.notAuthenticated, false);
-            setAuthUiSignedOut();
-            setExplorerEnabled(false);
-        }
-    });
-
-    setExplorerEnabled(false);
+    init();
 });
