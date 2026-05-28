@@ -15,7 +15,8 @@ if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
     $active_tab = 'connection';
 }
 
-$base_url = admin_url( 'admin.php?page=bomff-settings' );
+$base_url      = admin_url( 'admin.php?page=bomff-settings' );
+$firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sdk_in_non-google_environments';
 ?>
 
 <div class="wrap bomff-wrap">
@@ -23,13 +24,13 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
 
     <?php if ( isset( $_GET['bomff_saved'] ) ) : ?>
         <div class="notice notice-success is-dismissible">
-            <p><?php esc_html_e( 'Firebase Service Account configured successfully.', 'backoffice-manager-for-firebase' ); ?></p>
+            <p><?php esc_html_e( 'Firebase connection saved successfully.', 'backoffice-manager-for-firebase' ); ?></p>
         </div>
     <?php endif; ?>
 
     <?php if ( isset( $_GET['bomff_deleted'] ) ) : ?>
         <div class="notice notice-success is-dismissible">
-            <p><?php esc_html_e( 'Firebase credentials removed.', 'backoffice-manager-for-firebase' ); ?></p>
+            <p><?php esc_html_e( 'Firebase connection removed.', 'backoffice-manager-for-firebase' ); ?></p>
         </div>
     <?php endif; ?>
 
@@ -60,15 +61,21 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
     <?php if ( 'connection' === $active_tab ) : ?>
 
         <div class="bomff-section bomff-mt-20">
-            <h2><?php esc_html_e( 'Firebase connection', 'backoffice-manager-for-firebase' ); ?></h2>
+            <h2><?php esc_html_e( 'Connect Firebase', 'backoffice-manager-for-firebase' ); ?></h2>
 
             <p>
-                <?php esc_html_e( 'Connect your Firebase project by uploading a Service Account JSON file. The file is encrypted before being stored in WordPress.', 'backoffice-manager-for-firebase' ); ?>
+                <?php esc_html_e( 'Upload the private key JSON file from your Firebase project to start managing Firestore from WordPress.', 'backoffice-manager-for-firebase' ); ?>
+            </p>
+
+            <p>
+                <a href="<?php echo esc_url( $firebase_help ); ?>" target="_blank" rel="noopener noreferrer">
+                    <?php esc_html_e( 'Open the official Firebase guide to create the JSON key file', 'backoffice-manager-for-firebase' ); ?>
+                </a>
             </p>
 
             <ol>
-                <li><?php esc_html_e( 'Open Firebase Console → Project Settings → Service Accounts.', 'backoffice-manager-for-firebase' ); ?></li>
-                <li><?php esc_html_e( 'Click “Generate new private key”.', 'backoffice-manager-for-firebase' ); ?></li>
+                <li><?php esc_html_e( 'Open your Firebase project settings.', 'backoffice-manager-for-firebase' ); ?></li>
+                <li><?php esc_html_e( 'Go to the service accounts section and generate a new private key.', 'backoffice-manager-for-firebase' ); ?></li>
                 <li><?php esc_html_e( 'Upload the downloaded JSON file below.', 'backoffice-manager-for-firebase' ); ?></li>
             </ol>
 
@@ -80,7 +87,7 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
                     <tr>
                         <th scope="row">
                             <label for="bomff_service_account_json">
-                                <?php esc_html_e( 'Service Account JSON', 'backoffice-manager-for-firebase' ); ?>
+                                <?php esc_html_e( 'Firebase JSON key file', 'backoffice-manager-for-firebase' ); ?>
                             </label>
                         </th>
                         <td>
@@ -98,7 +105,7 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
                     </tr>
                 </table>
 
-                <?php submit_button( __( 'Save Firebase credentials', 'backoffice-manager-for-firebase' ) ); ?>
+                <?php submit_button( __( 'Save connection', 'backoffice-manager-for-firebase' ) ); ?>
             </form>
         </div>
 
@@ -121,12 +128,8 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
                             <td><code><?php echo esc_html( $service_account['project_id'] ?? '' ); ?></code></td>
                         </tr>
                         <tr>
-                            <td><strong><?php esc_html_e( 'Client email', 'backoffice-manager-for-firebase' ); ?></strong></td>
+                            <td><strong><?php esc_html_e( 'Firebase account', 'backoffice-manager-for-firebase' ); ?></strong></td>
                             <td><code><?php echo esc_html( $service_account['client_email'] ?? '' ); ?></code></td>
-                        </tr>
-                        <tr>
-                            <td><strong><?php esc_html_e( 'Storage', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                            <td><?php esc_html_e( 'Encrypted WordPress database', 'backoffice-manager-for-firebase' ); ?></td>
                         </tr>
                     </tbody>
                 </table>
@@ -136,18 +139,18 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
                     <input type="hidden" name="action" value="bomff_delete_service_account" />
 
                     <?php submit_button(
-                        __( 'Remove credentials', 'backoffice-manager-for-firebase' ),
+                        __( 'Remove connection', 'backoffice-manager-for-firebase' ),
                         'delete',
                         'submit',
                         false,
                         array(
-                            'onclick' => "return confirm('Are you sure you want to remove the Firebase credentials?');",
+                            'onclick' => "return confirm('Are you sure you want to remove the Firebase connection?');",
                         )
                     ); ?>
                 </form>
             <?php else : ?>
                 <div class="notice notice-warning inline">
-                    <p><?php esc_html_e( 'Firebase is not configured yet.', 'backoffice-manager-for-firebase' ); ?></p>
+                    <p><?php esc_html_e( 'Firebase is not connected yet.', 'backoffice-manager-for-firebase' ); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -214,7 +217,7 @@ $base_url = admin_url( 'admin.php?page=bomff-settings' );
             <table class="widefat striped">
                 <tbody>
                     <tr>
-                        <td><strong><?php esc_html_e( 'External credential file', 'backoffice-manager-for-firebase' ); ?></strong></td>
+                        <td><strong><?php esc_html_e( 'External key file', 'backoffice-manager-for-firebase' ); ?></strong></td>
                         <td><?php esc_html_e( 'Planned for advanced/professional setups.', 'backoffice-manager-for-firebase' ); ?></td>
                     </tr>
                     <tr>
