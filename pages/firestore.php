@@ -13,18 +13,6 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
 
   <div id="firebase-admin-panel-app">
 
-    <div class="bomff-section">
-      <p>
-        <?php esc_html_e( 'Firebase status:', 'backoffice-manager-for-firebase' ); ?>
-        <span id="firebase-connection-status"><?php esc_html_e( 'Checking…', 'backoffice-manager-for-firebase' ); ?></span>
-      </p>
-
-      <p>
-        <?php esc_html_e( 'Access mode:', 'backoffice-manager-for-firebase' ); ?>
-        <strong><?php esc_html_e( 'Server-side Service Account', 'backoffice-manager-for-firebase' ); ?></strong>
-      </p>
-    </div>
-
     <div id="bomff-config-warning" class="notice notice-warning bomff-hidden">
       <p>
         <?php esc_html_e( 'Firebase is not configured yet.', 'backoffice-manager-for-firebase' ); ?>
@@ -34,13 +22,7 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
       </p>
     </div>
 
-    <div class="bomff-section bomff-mt-20">
-      <div class="notice notice-info inline">
-        <p>
-          <?php esc_html_e( 'Firestore operations are now executed securely from the WordPress server. Firebase user login is no longer required.', 'backoffice-manager-for-firebase' ); ?>
-        </p>
-      </div>
-    </div>
+    <span id="firebase-connection-status" class="bomff-hidden" aria-hidden="true"></span>
 
     <div class="bomff-section bomff-mt-20">
       <h2><?php esc_html_e( 'Guided creation', 'backoffice-manager-for-firebase' ); ?></h2>
