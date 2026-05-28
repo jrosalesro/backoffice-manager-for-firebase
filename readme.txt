@@ -4,7 +4,7 @@ Tags: firebase, firestore, admin, backoffice, database
 Requires at least: 6.0
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 0.1.0
+Stable tag: 0.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,18 @@ Not in this version.
 6. Assisted Firestore document creation using a guided form generated from an existing collection structure.
 
 == Changelog ==
+
+= 0.2.0 =
+* Simplified admin menu: Firestore and Settings only.
+* Added configuration warning on Firestore screen.
+* Replaced View JSON row action with Duplicate document.
+* Improved quick array editing with add/remove item controls.
+
+= 0.2.0 =
+* Stable alphabetical table columns.
+* Added quick field editing by double-clicking table cells.
+* Added field-specific actions for strings, numbers and booleans.
+
 
 = 0.1.0 =
 * Initial public release.

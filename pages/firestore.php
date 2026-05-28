@@ -18,6 +18,39 @@ if ( ! current_user_can( 'manage_options' ) ) {
       <p><?php esc_html_e( 'Authentication status:', 'backoffice-manager-for-firebase' ); ?> <span id="firebase-auth-status"><?php esc_html_e( 'Checking…', 'backoffice-manager-for-firebase' ); ?></span></p>
     </div>
 
+    <div id="bomff-config-warning" class="notice notice-warning bomff-hidden">
+      <p>
+        <?php esc_html_e( 'Firebase is not configured yet.', 'backoffice-manager-for-firebase' ); ?>
+        <a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=bomff-settings' ) ); ?>"><?php esc_html_e( 'Open Settings', 'backoffice-manager-for-firebase' ); ?></a>
+      </p>
+    </div>
+
+    <div class="bomff-section bomff-mt-20" id="bomff-auth-panel">
+      <h2><?php esc_html_e( 'Firebase login', 'backoffice-manager-for-firebase' ); ?></h2>
+
+      <div id="bomff-auth-when-signed-out">
+        <table class="form-table" role="presentation">
+          <tr>
+            <th scope="row"><label for="bomff-auth-email"><?php esc_html_e( 'Email', 'backoffice-manager-for-firebase' ); ?></label></th>
+            <td><input type="email" id="bomff-auth-email" class="regular-text" placeholder="demo@backoffice.test" /></td>
+          </tr>
+          <tr>
+            <th scope="row"><label for="bomff-auth-password"><?php esc_html_e( 'Password', 'backoffice-manager-for-firebase' ); ?></label></th>
+            <td><input type="password" id="bomff-auth-password" class="regular-text" /></td>
+          </tr>
+        </table>
+        <p>
+          <button id="bomff-auth-login" class="button button-primary" type="button"><?php esc_html_e( 'Login to Firebase', 'backoffice-manager-for-firebase' ); ?></button>
+          <span id="bomff-auth-msg" class="bomff-inline-msg"></span>
+        </p>
+      </div>
+
+      <div id="bomff-auth-when-signed-in" style="display:none;">
+        <p id="bomff-auth-msg-in"></p>
+        <button id="bomff-auth-logout" class="button" type="button"><?php esc_html_e( 'Logout', 'backoffice-manager-for-firebase' ); ?></button>
+      </div>
+    </div>
+
     <!-- GUIDED CREATION -->
     <div class="bomff-section bomff-mt-20">
       <h2><?php esc_html_e( 'Guided creation', 'backoffice-manager-for-firebase' ); ?></h2>
@@ -173,7 +206,14 @@ if ( ! current_user_can( 'manage_options' ) ) {
     <div class="bomff-modal__body">
       <form id="bomff-edit-form" class="bomff-modal__form">
         <div class="bomff-field">
-          <label for="bomff-edit-json"><?php esc_html_e( 'JSON', 'backoffice-manager-for-firebase' ); ?></label>
+          <label><?php esc_html_e( 'Fields', 'backoffice-manager-for-firebase' ); ?></label>
+          <div id="bomff-edit-fields" class="bomff-edit-fields"></div>
+          <div class="bomff-muted">
+            <?php esc_html_e( 'Use the field editor for common values. The JSON area below is still available for advanced edits.', 'backoffice-manager-for-firebase' ); ?>
+          </div>
+        </div>
+        <div class="bomff-field">
+          <label for="bomff-edit-json"><?php esc_html_e( 'Advanced JSON', 'backoffice-manager-for-firebase' ); ?></label>
           <textarea id="bomff-edit-json" rows="16" spellcheck="false" class="bomff-code-textarea"></textarea>
           <div id="bomff-edit-error" class="bomff-hint-error bomff-hidden"></div>
           <div class="bomff-muted">
@@ -185,6 +225,33 @@ if ( ! current_user_can( 'manage_options' ) ) {
     <div class="bomff-modal__footer">
       <button id="bomff-edit-cancel" class="button" type="button"><?php esc_html_e( 'Close', 'backoffice-manager-for-firebase' ); ?></button>
       <button id="bomff-edit-save" class="button button-primary" type="button"><?php esc_html_e( 'Save changes', 'backoffice-manager-for-firebase' ); ?></button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- QUICK FIELD EDIT MODAL -->
+<div id="bomff-field-modal" class="bomff-modal" aria-hidden="true">
+  <div class="bomff-modal__panel bomff-modal__panel--small" role="dialog" aria-modal="true" aria-labelledby="bomff-field-title">
+    <div class="bomff-modal__header">
+      <h2 id="bomff-field-title"><?php esc_html_e( 'Quick field edit', 'backoffice-manager-for-firebase' ); ?></h2>
+      <button id="bomff-field-close-x" class="button" type="button">✕</button>
+    </div>
+    <div class="bomff-modal__meta">
+      <div><strong><?php esc_html_e( 'Doc ID:', 'backoffice-manager-for-firebase' ); ?></strong> <code id="bomff-field-docid"></code></div>
+      <div><strong><?php esc_html_e( 'Field:', 'backoffice-manager-for-firebase' ); ?></strong> <code id="bomff-field-name"></code></div>
+      <div><strong><?php esc_html_e( 'Type:', 'backoffice-manager-for-firebase' ); ?></strong> <code id="bomff-field-type"></code></div>
+    </div>
+    <div class="bomff-modal__body">
+      <div id="bomff-field-actions" class="bomff-field-actions"></div>
+      <div id="bomff-field-editor" class="bomff-modal__form"></div>
+      <div id="bomff-field-error" class="bomff-hint-error bomff-hidden"></div>
+      <p class="bomff-muted bomff-mt-10"><?php esc_html_e( 'Tip: double-click any table field to edit it quickly.', 'backoffice-manager-for-firebase' ); ?></p>
+    </div>
+    <div class="bomff-modal__footer">
+      <button id="bomff-field-cancel" class="button" type="button"><?php esc_html_e( 'Close', 'backoffice-manager-for-firebase' ); ?></button>
+      <button id="bomff-field-save" class="button button-primary" type="button"><?php esc_html_e( 'Save field', 'backoffice-manager-for-firebase' ); ?></button>
     </div>
   </div>
 </div>

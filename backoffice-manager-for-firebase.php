@@ -2,7 +2,7 @@
 /*
 Plugin Name: BackOffice Manager for Firebase
 Description: Manage Firebase Firestore collections and documents from your WordPress admin area.
-Version: 0.1.0
+Version: 0.2.0
 Author: José Rosales Rosendo
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -30,25 +30,17 @@ function bomff_add_admin_menu() {
         __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
         'manage_options',
         'bomff-admin-panel',
-        'bomff_render_admin_page',
+        'bomff_render_firestore_page',
         'dashicons-database',
         80
     );
 
     add_submenu_page(
         'bomff-admin-panel',
-        __( 'Home', 'backoffice-manager-for-firebase' ),
-        __( 'Home', 'backoffice-manager-for-firebase' ),
+        __( 'Firestore', 'backoffice-manager-for-firebase' ),
+        __( 'Firestore', 'backoffice-manager-for-firebase' ),
         'manage_options',
-        'bomff-admin-panel'
-    );
-
-    add_submenu_page(
         'bomff-admin-panel',
-        __( 'Firestore', 'backoffice-manager-for-firebase' ),
-        __( 'Firestore', 'backoffice-manager-for-firebase' ),
-        'manage_options',
-        'bomff-firestore',
         'bomff_render_firestore_page'
     );
 
@@ -241,7 +233,6 @@ function bomff_enqueue_admin_scripts( $hook ) {
 
     $allowed_pages = array(
         'bomff-admin-panel',
-        'bomff-firestore',
         'bomff-settings',
     );
 

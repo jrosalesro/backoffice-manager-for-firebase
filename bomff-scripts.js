@@ -1,6 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     const statusConnectionEl = document.getElementById('firebase-connection-status');
     const statusAuthEl = document.getElementById('firebase-auth-status');
+    const configWarningEl = document.getElementById('bomff-config-warning');
 
     // ---------------------------------------------------------
     // UI text (single source of truth for copy)
@@ -62,6 +63,12 @@ document.addEventListener('DOMContentLoaded', () => {
         docLoadError: (msg) => `Could not load document: ${msg}`,
         jsonInvalid: (msg) => `Invalid JSON: ${msg}`,
         saveError: (msg) => `Could not save: ${msg}`,
+        fieldSaveError: (msg) => `Could not save field: ${msg}`,
+        fieldSaved: 'Field saved.',
+        duplicatePrompt: (id) => `New document ID for the duplicate. Leave empty to generate an automatic ID. Suggested: ${id}-copy`,
+        duplicateSameId: 'The duplicate cannot use the same document ID.',
+        duplicateDone: 'Document duplicated.',
+        duplicateError: (msg) => `Could not duplicate document: ${msg}`,
 
         // Table placeholders
         tableLoading: 'Loading…',
@@ -154,6 +161,11 @@ document.addEventListener('DOMContentLoaded', () => {
         statusConnectionEl.className = ok ? 'bomff-status-success' : 'bomff-status-error';
     }
 
+    function showConfigWarning(show) {
+        if (!configWarningEl) return;
+        configWarningEl.classList.toggle('bomff-hidden', !show);
+    }
+
     function setAuthStatus(text, ok = true) {
         if (!statusAuthEl) return;
         statusAuthEl.textContent = text;
@@ -168,12 +180,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (!firebaseConfig) {
         setConnectionStatus(UI_TEXT.configNotAvailable, false);
+        showConfigWarning(true);
         return;
     }
 
     const firebaseConfigSafe = firebaseConfig || {};
     if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
         setConnectionStatus(UI_TEXT.configIncomplete, false);
+        showConfigWarning(true);
         return;
     }
 
@@ -188,9 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		window.fwpFirestore.auth = auth;	
 
         setConnectionStatus(UI_TEXT.connected, true);
+        showConfigWarning(false);
     } catch (e) {
         console.error(e);
         setConnectionStatus(UI_TEXT.initError, false);
+        showConfigWarning(true);
         return;
     }
 
@@ -226,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const editCollectionEl = document.getElementById('bomff-edit-collection');
     const editDocIdEl = document.getElementById('bomff-edit-docid');
     const editJsonEl = document.getElementById('bomff-edit-json');
+    const editFieldsEl = document.getElementById('bomff-edit-fields');
     const editErrorEl = document.getElementById('bomff-edit-error');
     const btnEditSave = document.getElementById('bomff-edit-save');
     const btnEditCancel = document.getElementById('bomff-edit-cancel');
@@ -251,6 +268,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnCreateSave = document.getElementById('bomff-create-save');
     const btnCreateCancel = document.getElementById('bomff-create-cancel');
     const btnCreateCloseX = document.getElementById('bomff-create-close-x');
+
+    const fieldModal = document.getElementById('bomff-field-modal');
+    const fieldDocIdEl = document.getElementById('bomff-field-docid');
+    const fieldNameEl = document.getElementById('bomff-field-name');
+    const fieldTypeEl = document.getElementById('bomff-field-type');
+    const fieldActionsEl = document.getElementById('bomff-field-actions');
+    const fieldEditorEl = document.getElementById('bomff-field-editor');
+    const fieldErrorEl = document.getElementById('bomff-field-error');
+    const btnFieldSave = document.getElementById('bomff-field-save');
+    const btnFieldCancel = document.getElementById('bomff-field-cancel');
+    const btnFieldCloseX = document.getElementById('bomff-field-close-x');
 
     function setExplorerEnabled(enabled) {
         if (!isFirestorePage) return;
@@ -391,6 +419,32 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------
     let activeStructure = null; // { collection, fields: [{name,type,required,auto}] }
     let currentCollection = null;
+
+    const lastCollectionStorageKey = 'bomff_last_collection_' + (firebaseConfig && firebaseConfig.projectId ? firebaseConfig.projectId : 'default');
+
+    function getSavedCollectionName() {
+        try {
+            return window.localStorage.getItem(lastCollectionStorageKey) || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    function saveCollectionName(name) {
+        if (!name) return;
+        try {
+            window.localStorage.setItem(lastCollectionStorageKey, name);
+        } catch (e) {
+            // localStorage can be unavailable in strict browser/privacy modes.
+        }
+    }
+
+    if (collectionInputEl && !collectionInputEl.value) {
+        const savedCollectionName = getSavedCollectionName();
+        if (savedCollectionName) {
+            collectionInputEl.value = savedCollectionName;
+        }
+    }
 
     function renderMiniStructure() {
         if (!structureMiniEl || !structureCollectionEl || !structureCountEl) return;
@@ -764,6 +818,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return escapeHtml(String(v));
     }
 
+    function inferFieldType(v) {
+        if (v === null || typeof v === 'undefined') return 'null';
+        if (typeof v === 'string') return 'string';
+        if (typeof v === 'number') return 'number';
+        if (typeof v === 'boolean') return 'boolean';
+        if (Array.isArray(v)) return 'array';
+        if (v && typeof v === 'object' && typeof v.seconds === 'number') return 'timestamp';
+        if (typeof v === 'object') return 'map';
+        return 'string';
+    }
+
+    function encodeDataValue(v) {
+        try {
+            return escapeHtml(JSON.stringify(v));
+        } catch (e) {
+            return escapeHtml(JSON.stringify(String(v)));
+        }
+    }
+
+    function renderQuickCell(docId, field, value) {
+        const type = inferFieldType(value);
+        return `<td class="bomff-quick-cell" title="Double-click to quick edit" data-doc-id="${escapeHtml(docId)}" data-field="${escapeHtml(field)}" data-type="${escapeHtml(type)}" data-value="${encodeDataValue(value)}">${compactValue(value)}</td>`;
+    }
+
     function clearTable(message) {
         if (!resultsBodyEl) return;
         resultsBodyEl.innerHTML = `
@@ -784,20 +862,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentColumns = [];
     let showExtrasColumn = true;
 
-    function detectColumnsFromDocs(docs, maxCols = 7) {
-        const freq = new Map();
+    function detectColumnsFromDocs(docs) {
+        const columns = new Set();
         docs.forEach((doc) => {
             const data = doc.data() || {};
             Object.keys(data).forEach((k) => {
                 if (isLikelyNoisyField(k)) return;
-                freq.set(k, (freq.get(k) || 0) + 1);
+                columns.add(k);
             });
         });
 
-        return [...freq.entries()]
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, maxCols)
-            .map(([k]) => k);
+        return Array.from(columns).sort((a, b) =>
+            a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+        );
     }
 
     function renderExtrasCell(data, usedSet) {
@@ -806,6 +883,291 @@ document.addEventListener('DOMContentLoaded', () => {
         const chips = keys.slice(0, 6).map((k) => `<span class="bomff-chip" title="${escapeHtml(k)}">${escapeHtml(k)}</span>`);
         const more = keys.length > 6 ? `<span class="bomff-chip">+${keys.length - 6}</span>` : '';
         return chips.join('') + more;
+    }
+
+
+    let activeFieldEdit = null;
+
+    function setFieldError(message) {
+        if (!fieldErrorEl) return;
+        fieldErrorEl.textContent = message || '';
+        fieldErrorEl.style.display = message ? '' : 'none';
+    }
+
+    function setQuickInputValue(value) {
+        const input = document.getElementById('bomff-field-value');
+        if (input) input.value = value;
+    }
+
+    function getQuickInputValue() {
+        const input = document.getElementById('bomff-field-value');
+        return input ? input.value : '';
+    }
+
+    function applyStringTransform(transform) {
+        const current = getQuickInputValue();
+        if (transform === 'upper') setQuickInputValue(current.toUpperCase());
+        if (transform === 'lower') setQuickInputValue(current.toLowerCase());
+        if (transform === 'capitalize') {
+            setQuickInputValue(current.replace(/(^|\s)(\S)/g, (match, space, char) => space + char.toUpperCase()));
+        }
+        if (transform === 'trim') setQuickInputValue(current.trim());
+    }
+
+    function applyNumberTransform(mode) {
+        const current = parseFloat(getQuickInputValue());
+        const amount = parseFloat(document.getElementById('bomff-field-number-amount')?.value || '0');
+        if (!Number.isFinite(current) || !Number.isFinite(amount)) return;
+        let next = current;
+        if (mode === 'add') next = current + amount;
+        if (mode === 'subtract') next = current - amount;
+        if (mode === 'percent_add') next = current + (current * amount / 100);
+        if (mode === 'percent_subtract') next = current - (current * amount / 100);
+        setQuickInputValue(Number.isInteger(next) ? String(next) : String(Number(next.toFixed(6))));
+    }
+
+    function renderFieldEditor(value, type) {
+        if (!fieldEditorEl || !fieldActionsEl) return;
+        fieldActionsEl.innerHTML = '';
+
+        if (type === 'string') {
+            fieldEditorEl.innerHTML = `
+                <div class="bomff-field">
+                    <label for="bomff-field-value">Value</label>
+                    <textarea id="bomff-field-value" rows="5" spellcheck="false">${escapeHtml(String(value || ''))}</textarea>
+                </div>
+            `;
+            fieldActionsEl.innerHTML = `
+                <button class="button" type="button" data-string-action="upper">UPPERCASE</button>
+                <button class="button" type="button" data-string-action="lower">lowercase</button>
+                <button class="button" type="button" data-string-action="capitalize">Capitalize</button>
+                <button class="button" type="button" data-string-action="trim">Trim</button>
+            `;
+            fieldActionsEl.querySelectorAll('[data-string-action]').forEach((btn) => {
+                btn.addEventListener('click', () => applyStringTransform(btn.dataset.stringAction));
+            });
+            return;
+        }
+
+        if (type === 'number') {
+            fieldEditorEl.innerHTML = `
+                <div class="bomff-field">
+                    <label for="bomff-field-value">Value</label>
+                    <input id="bomff-field-value" type="number" step="any" value="${escapeHtml(String(value ?? 0))}" />
+                </div>
+            `;
+            fieldActionsEl.innerHTML = `
+                <input id="bomff-field-number-amount" type="number" step="any" value="10" class="bomff-inline-number" />
+                <button class="button" type="button" data-number-action="add">Add</button>
+                <button class="button" type="button" data-number-action="subtract">Subtract</button>
+                <button class="button" type="button" data-number-action="percent_add">Add %</button>
+                <button class="button" type="button" data-number-action="percent_subtract">Subtract %</button>
+            `;
+            fieldActionsEl.querySelectorAll('[data-number-action]').forEach((btn) => {
+                btn.addEventListener('click', () => applyNumberTransform(btn.dataset.numberAction));
+            });
+            return;
+        }
+
+        if (type === 'boolean') {
+            fieldEditorEl.innerHTML = `
+                <div class="bomff-field">
+                    <label for="bomff-field-value">Value</label>
+                    <select id="bomff-field-value">
+                        <option value="true" ${value === true ? 'selected' : ''}>true</option>
+                        <option value="false" ${value === false ? 'selected' : ''}>false</option>
+                    </select>
+                </div>
+            `;
+            return;
+        }
+
+        if (type === 'array') {
+            const items = Array.isArray(value) ? value : [];
+            const renderArrayItem = (item) => {
+                const itemType = inferFieldType(item);
+                const raw = itemType === 'string' ? String(item) : safeJsonStringify(item);
+                return `
+                    <div class="bomff-array-item">
+                        <input type="text" class="bomff-array-value" data-item-type="${escapeHtml(itemType)}" value="${escapeHtml(raw)}" />
+                        <button class="button bomff-array-remove" type="button">Remove</button>
+                    </div>
+                `;
+            };
+            fieldEditorEl.innerHTML = `
+                <div class="bomff-field">
+                    <label>Array items</label>
+                    <div id="bomff-array-items">${items.map(renderArrayItem).join('')}</div>
+                    <button id="bomff-array-add" class="button" type="button">+ Add item</button>
+                    <div class="bomff-muted bomff-mt-10">Simple values are easier to edit here. Objects/maps can still be edited by writing valid JSON in the item field.</div>
+                </div>
+            `;
+            const list = fieldEditorEl.querySelector('#bomff-array-items');
+            const bindRemove = () => {
+                fieldEditorEl.querySelectorAll('.bomff-array-remove').forEach((btn) => {
+                    if (btn.dataset.bound) return;
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('click', () => btn.closest('.bomff-array-item')?.remove());
+                });
+            };
+            bindRemove();
+            const addBtn = fieldEditorEl.querySelector('#bomff-array-add');
+            if (addBtn && list) {
+                addBtn.addEventListener('click', () => {
+                    list.insertAdjacentHTML('beforeend', `
+                        <div class="bomff-array-item">
+                            <input type="text" class="bomff-array-value" data-item-type="string" value="" />
+                            <button class="button bomff-array-remove" type="button">Remove</button>
+                        </div>
+                    `);
+                    bindRemove();
+                });
+            }
+            return;
+        }
+
+        fieldEditorEl.innerHTML = `
+            <div class="bomff-field">
+                <label for="bomff-field-value">JSON value</label>
+                <textarea id="bomff-field-value" rows="8" spellcheck="false" class="bomff-code-textarea">${escapeHtml(safeJsonStringify(value))}</textarea>
+                <div class="bomff-muted">This field type is edited as JSON.</div>
+            </div>
+        `;
+    }
+
+    function parseQuickFieldValue(type) {
+        const raw = getQuickInputValue();
+        if (type === 'string') return raw;
+        if (type === 'number') {
+            const n = parseFloat(raw);
+            if (!Number.isFinite(n)) throw new Error('Invalid number.');
+            return n;
+        }
+        if (type === 'boolean') return raw === 'true';
+        if (type === 'array') {
+            return Array.from(document.querySelectorAll('#bomff-array-items .bomff-array-value')).map((input) => {
+                const itemType = input.dataset.itemType || 'string';
+                const value = input.value;
+                if (itemType === 'string') return value;
+                if (value === '') return '';
+                try { return safeJsonParse(value); } catch (e) { return value; }
+            });
+        }
+        if (type === 'null') return raw ? safeJsonParse(raw) : null;
+        return safeJsonParse(raw);
+    }
+
+    function openFieldModal(docId, field, value, type) {
+        if (!fieldModal || !fieldEditorEl) return;
+        activeFieldEdit = { docId, field, type };
+        if (fieldDocIdEl) fieldDocIdEl.textContent = docId;
+        if (fieldNameEl) fieldNameEl.textContent = field;
+        if (fieldTypeEl) fieldTypeEl.textContent = type;
+        setFieldError('');
+        renderFieldEditor(value, type);
+        openModal(fieldModal);
+    }
+
+    async function saveFieldModal() {
+        if (!activeFieldEdit || !currentCollection) return;
+        const { docId, field, type } = activeFieldEdit;
+        let value;
+        try {
+            value = parseQuickFieldValue(type);
+        } catch (e) {
+            setFieldError(e.message || String(e));
+            return;
+        }
+
+        try {
+            if (btnFieldSave) btnFieldSave.disabled = true;
+            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
+                op: 'update_field',
+                collection: currentCollection,
+                docId,
+                field,
+                data: { [field]: value }
+            }));
+
+            await db.collection(currentCollection).doc(docId).set({ [field]: value }, { merge: true });
+
+            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
+                op: 'update_field',
+                collection: currentCollection,
+                docId,
+                field,
+                ok: true
+            }));
+
+            closeModal(fieldModal);
+            setMsg(UI_TEXT.fieldSaved, true);
+            await loadPage('init');
+        } catch (e) {
+            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
+                op: 'update_field',
+                collection: currentCollection,
+                docId,
+                field,
+                ok: false,
+                error: e && e.message ? e.message : String(e)
+            }));
+            setFieldError(UI_TEXT.fieldSaveError(e.message));
+        } finally {
+            if (btnFieldSave) btnFieldSave.disabled = false;
+        }
+    }
+
+    async function duplicateDoc(col, id) {
+        if (!col || !id) return;
+        try {
+            const original = await db.collection(col).doc(id).get();
+            if (!original.exists) {
+                alert(UI_TEXT.docNotFound);
+                return;
+            }
+            const data = original.data() || {};
+            const requested = prompt(UI_TEXT.duplicatePrompt(id), `${id}-copy`);
+            if (requested === null) return;
+            const newId = String(requested || '').trim();
+            if (newId && newId === id) {
+                alert(UI_TEXT.duplicateSameId);
+                return;
+            }
+
+            fwpEmit('fwp:firestore:beforeWrite', fwpCtx({
+                op: 'duplicate',
+                collection: col,
+                docId: id,
+                targetDocId: newId || null,
+                data
+            }));
+
+            if (newId) {
+                await db.collection(col).doc(newId).set(data, { merge: false });
+            } else {
+                await db.collection(col).add(data);
+            }
+
+            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
+                op: 'duplicate',
+                collection: col,
+                docId: id,
+                targetDocId: newId || null,
+                ok: true
+            }));
+
+            setMsg(UI_TEXT.duplicateDone, true);
+            await loadPage('init');
+        } catch (e) {
+            fwpEmit('fwp:firestore:afterWrite', fwpCtx({
+                op: 'duplicate',
+                collection: col,
+                docId: id,
+                ok: false,
+                error: e && e.message ? e.message : String(e)
+            }));
+            alert(UI_TEXT.duplicateError(e.message));
+        }
     }
 
     async function deleteDoc(col, id) {
@@ -842,6 +1204,139 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+
+    function normalizeEditFieldValue(value) {
+        if (value && typeof value === 'object' && typeof value.toDate === 'function') {
+            return {
+                _type: 'timestamp',
+                seconds: value.seconds,
+                nanoseconds: value.nanoseconds || 0
+            };
+        }
+        return value;
+    }
+
+    function renderEditFieldInput(key, value) {
+        const cleanValue = normalizeEditFieldValue(value);
+        const type = detectType(cleanValue);
+        const id = 'bomff-edit-field-' + String(key).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const label = `<label for="${escapeHtml(id)}"><code>${escapeHtml(key)}</code> <span class="bomff-muted">${escapeHtml(type)}</span></label>`;
+        const encodedKey = escapeHtml(key);
+
+        if (type === 'boolean') {
+            return `
+                <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="boolean">
+                    ${label}
+                    <select id="${escapeHtml(id)}" class="bomff-edit-input">
+                        <option value="true" ${cleanValue ? 'selected' : ''}>true</option>
+                        <option value="false" ${!cleanValue ? 'selected' : ''}>false</option>
+                    </select>
+                </div>`;
+        }
+
+        if (type === 'number') {
+            return `
+                <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="number">
+                    ${label}
+                    <input id="${escapeHtml(id)}" class="bomff-edit-input regular-text" type="number" step="any" value="${escapeHtml(cleanValue)}" />
+                </div>`;
+        }
+
+        if (type === 'array') {
+            const items = Array.isArray(cleanValue) ? cleanValue : [];
+            const simple = items.every((item) => item === null || ['string','number','boolean'].includes(typeof item));
+            if (simple) {
+                const itemRows = items.map((item) => `
+                    <div class="bomff-array-item">
+                        <input type="text" class="regular-text bomff-edit-array-value" value="${escapeHtml(item === null ? '' : item)}" data-original-type="${escapeHtml(item === null ? 'string' : typeof item)}" />
+                        <button type="button" class="button bomff-edit-array-remove">Remove</button>
+                    </div>`).join('');
+                return `
+                    <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="array-simple">
+                        ${label}
+                        <div class="bomff-edit-array-items">${itemRows}</div>
+                        <button type="button" class="button bomff-edit-array-add">+ Add item</button>
+                    </div>`;
+            }
+        }
+
+        if (type === 'map' || type === 'array' || type === 'timestamp') {
+            return `
+                <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="json">
+                    ${label}
+                    <textarea class="bomff-edit-input bomff-code-textarea" rows="5" spellcheck="false">${escapeHtml(safeJsonStringify(cleanValue))}</textarea>
+                </div>`;
+        }
+
+        return `
+            <div class="bomff-field bomff-edit-field-row" data-field="${encodedKey}" data-type="string">
+                ${label}
+                <input id="${escapeHtml(id)}" class="bomff-edit-input regular-text" type="text" value="${escapeHtml(cleanValue === null || typeof cleanValue === 'undefined' ? '' : cleanValue)}" />
+            </div>`;
+    }
+
+    function bindEditArrayControls() {
+        if (!editFieldsEl) return;
+        editFieldsEl.querySelectorAll('.bomff-edit-array-remove').forEach((btn) => {
+            btn.addEventListener('click', () => btn.closest('.bomff-array-item')?.remove());
+        });
+        editFieldsEl.querySelectorAll('.bomff-edit-array-add').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const wrap = btn.closest('.bomff-edit-field-row');
+                const list = wrap ? wrap.querySelector('.bomff-edit-array-items') : null;
+                if (!list) return;
+                const row = document.createElement('div');
+                row.className = 'bomff-array-item';
+                row.innerHTML = '<input type="text" class="regular-text bomff-edit-array-value" value="" data-original-type="string" /> <button type="button" class="button bomff-edit-array-remove">Remove</button>';
+                list.appendChild(row);
+                const remove = row.querySelector('.bomff-edit-array-remove');
+                if (remove) remove.addEventListener('click', () => row.remove());
+            });
+        });
+    }
+
+    function renderEditFields(data) {
+        if (!editFieldsEl) return;
+        const keys = Object.keys(data || {}).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
+        editFieldsEl.innerHTML = keys.length ? keys.map((key) => renderEditFieldInput(key, data[key])).join('') : '<p class="bomff-muted">This document has no fields yet. Use Advanced JSON below.</p>';
+        bindEditArrayControls();
+    }
+
+    function castEditArrayValue(raw, originalType) {
+        if (originalType === 'number' && raw !== '') {
+            const n = Number(raw);
+            return Number.isNaN(n) ? raw : n;
+        }
+        if (originalType === 'boolean') return raw === 'true' || raw === '1';
+        return raw;
+    }
+
+    function collectEditFields() {
+        if (!editFieldsEl) return null;
+        const out = {};
+        editFieldsEl.querySelectorAll('.bomff-edit-field-row').forEach((row) => {
+            const field = row.dataset.field;
+            const type = row.dataset.type;
+            if (!field) return;
+            if (type === 'array-simple') {
+                out[field] = Array.from(row.querySelectorAll('.bomff-edit-array-value')).map((input) => castEditArrayValue(input.value, input.dataset.originalType || 'string'));
+                return;
+            }
+            const input = row.querySelector('.bomff-edit-input');
+            if (!input) return;
+            if (type === 'number') {
+                out[field] = input.value === '' ? null : Number(input.value);
+            } else if (type === 'boolean') {
+                out[field] = input.value === 'true';
+            } else if (type === 'json') {
+                out[field] = safeJsonParse(input.value || 'null');
+            } else {
+                out[field] = input.value;
+            }
+        });
+        return out;
+    }
+
     async function openEditModal(col, id) {
         if (!editModal || !editJsonEl || !editCollectionEl || !editDocIdEl) return;
         editErrorEl.style.display = 'none';
@@ -855,7 +1350,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             editCollectionEl.textContent = col;
             editDocIdEl.textContent = id;
-            editJsonEl.value = safeJsonStringify(doc.data() || {});
+            const editData = doc.data() || {};
+            editJsonEl.value = safeJsonStringify(editData);
+            renderEditFields(editData);
             editModal.dataset.collection = col;
             editModal.dataset.docid = id;
             openModal(editModal);
@@ -872,7 +1369,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let obj;
         try {
-            obj = safeJsonParse(editJsonEl.value || '{}');
+            obj = collectEditFields() || safeJsonParse(editJsonEl.value || '{}');
+            if (editJsonEl) editJsonEl.value = safeJsonStringify(obj);
         } catch (e) {
             editErrorEl.style.display = '';
             editErrorEl.textContent = UI_TEXT.jsonInvalid(e.message);
@@ -923,7 +1421,7 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsBodyEl.innerHTML = '';
 
         if (!currentColumns.length) {
-            currentColumns = detectColumnsFromDocs(docs, 7);
+            currentColumns = detectColumnsFromDocs(docs);
             const headRow = document.getElementById('bomff-results-head-row');
             if (headRow) {
                 const cols = currentColumns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
@@ -944,7 +1442,7 @@ document.addEventListener('DOMContentLoaded', () => {
             tds.push(`<td><code>${escapeHtml(doc.id)}</code></td>`);
 
             currentColumns.forEach((field) => {
-                tds.push(`<td>${compactValue(data[field])}</td>`);
+                tds.push(renderQuickCell(doc.id, field, data[field]));
             });
 
             if (showExtrasColumn) {
@@ -953,7 +1451,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tds.push(`
         <td class="bomff-col-actions">
-          <button class="button bomff-view-json" type="button">View JSON</button>
+          <button class="button bomff-duplicate-doc" type="button">Duplicate</button>
           <button class="button bomff-edit-doc" type="button">Edit</button>
           <button class="button bomff-del-doc" type="button">Delete</button>
         </td>
@@ -963,14 +1461,26 @@ document.addEventListener('DOMContentLoaded', () => {
 			tr.dataset.docId = doc.id;
             tr.innerHTML = tds.join('');
 
-            const viewBtn = tr.querySelector('.bomff-view-json');
-            if (viewBtn) viewBtn.addEventListener('click', () => openJsonModal(data));
+            const duplicateBtn = tr.querySelector('.bomff-duplicate-doc');
+            if (duplicateBtn) duplicateBtn.addEventListener('click', () => duplicateDoc(currentCollection, doc.id));
 
             const editBtn = tr.querySelector('.bomff-edit-doc');
             if (editBtn) editBtn.addEventListener('click', () => openEditModal(currentCollection, doc.id));
 
             const delBtn = tr.querySelector('.bomff-del-doc');
             if (delBtn) delBtn.addEventListener('click', () => deleteDoc(currentCollection, doc.id));
+
+            tr.querySelectorAll('.bomff-quick-cell').forEach((cell) => {
+                cell.addEventListener('dblclick', () => {
+                    let value = null;
+                    try {
+                        value = JSON.parse(cell.dataset.value || 'null');
+                    } catch (e) {
+                        value = cell.dataset.value || '';
+                    }
+                    openFieldModal(cell.dataset.docId, cell.dataset.field, value, cell.dataset.type);
+                });
+            });
 
             resultsBodyEl.appendChild(tr);
         });
@@ -1059,6 +1569,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             currentCollection = name;
+            saveCollectionName(currentCollection);
 			
 			window.bomffFirebaseConfig = window.bomffFirebaseConfig || {};
 			window.bomffFirebaseConfig.collectionPath = currentCollection;
@@ -1102,7 +1613,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                currentColumns = detectColumnsFromDocs([doc], 7);
+                currentColumns = detectColumnsFromDocs([doc]);
                 renderRows([doc]);
                 prevBtn.disabled = cursorStack.length === 0;
                 nextBtn.disabled = true;
@@ -1145,6 +1656,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------
     // Modal events (do NOT close on outside click)
     // ---------------------------
+    if (btnFieldSave) btnFieldSave.addEventListener('click', saveFieldModal);
+    if (btnFieldCancel && fieldModal) btnFieldCancel.addEventListener('click', () => closeModal(fieldModal));
+    if (btnFieldCloseX && fieldModal) btnFieldCloseX.addEventListener('click', () => closeModal(fieldModal));
+
     function bindJsonClose() {
         if (btnJsonClose && jsonModal) btnJsonClose.addEventListener('click', () => closeModal(jsonModal));
         if (btnJsonCloseX && jsonModal) btnJsonCloseX.addEventListener('click', () => closeModal(jsonModal));
@@ -1328,6 +1843,17 @@ document.addEventListener('DOMContentLoaded', () => {
             setExplorerEnabled(true);
             bindFirestoreOnce();
             await loadActiveStructureFromWP();
+
+            // Auto-load the last used collection when returning to Firestore.
+            // This keeps the 0.2 UX simple: if a collection was remembered,
+            // the user lands directly on its documents without pressing Load.
+            if (isFirestorePage && collectionInputEl && loadCollectionBtn) {
+                const savedCollectionName = (collectionInputEl.value || getSavedCollectionName() || '').trim();
+                if (savedCollectionName && !currentCollection) {
+                    collectionInputEl.value = savedCollectionName;
+                    loadCollectionBtn.click();
+                }
+            }
         } else {
             setAuthStatus(UI_TEXT.notAuthenticated, false);
             setAuthUiSignedOut();
