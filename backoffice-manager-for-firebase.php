@@ -21,14 +21,16 @@ if ( ! defined( 'BOMFF_PLUGIN_URL' ) ) {
     define( 'BOMFF_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
+define( 'BOMFF_CAPABILITY', 'manage_options' );
+
 /**
- * 1) Main menu and submenus
+ * Admin menu.
  */
 function bomff_add_admin_menu() {
     add_menu_page(
         __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
         __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
-        'manage_options',
+        BOMFF_CAPABILITY,
         'bomff-admin-panel',
         'bomff_render_firestore_page',
         'dashicons-database',
@@ -39,7 +41,7 @@ function bomff_add_admin_menu() {
         'bomff-admin-panel',
         __( 'Firestore', 'backoffice-manager-for-firebase' ),
         __( 'Firestore', 'backoffice-manager-for-firebase' ),
-        'manage_options',
+        BOMFF_CAPABILITY,
         'bomff-admin-panel',
         'bomff_render_firestore_page'
     );
@@ -48,27 +50,15 @@ function bomff_add_admin_menu() {
         'bomff-admin-panel',
         __( 'Settings', 'backoffice-manager-for-firebase' ),
         __( 'Settings', 'backoffice-manager-for-firebase' ),
-        'manage_options',
+        BOMFF_CAPABILITY,
         'bomff-settings',
         'bomff_render_settings_page'
     );
 }
-
 add_action( 'admin_menu', 'bomff_add_admin_menu' );
 
-/**
- * 2) Page callbacks
- */
-function bomff_render_admin_page() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'backoffice-manager-for-firebase' ) );
-    }
-
-    include BOMFF_PLUGIN_PATH . 'bomff-admin.php';
-}
-
 function bomff_render_firestore_page() {
-    if ( ! current_user_can( 'manage_options' ) ) {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
         wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'backoffice-manager-for-firebase' ) );
     }
 
@@ -76,7 +66,7 @@ function bomff_render_firestore_page() {
 }
 
 function bomff_render_settings_page() {
-    if ( ! current_user_can( 'manage_options' ) ) {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
         wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'backoffice-manager-for-firebase' ) );
     }
 
@@ -84,151 +74,9 @@ function bomff_render_settings_page() {
 }
 
 /**
- * 3) Settings API (Firebase config)
- */
-function bomff_sanitize_firebase_config( $input ) {
-    $out = array();
-
-    $keys = array(
-        'apiKey',
-        'authDomain',
-        'projectId',
-        'storageBucket',
-        'messagingSenderId',
-        'appId',
-    );
-
-    foreach ( $keys as $key ) {
-        $out[ $key ] = isset( $input[ $key ] ) ? sanitize_text_field( $input[ $key ] ) : '';
-    }
-
-    return $out;
-}
-
-function bomff_register_settings() {
-
-    register_setting(
-        'bomff_settings_group',
-        'bomff_firebase_config',
-        array(
-            'sanitize_callback' => 'bomff_sanitize_firebase_config',
-            'default'           => array(),
-        )
-    );
-
-    add_settings_section(
-        'bomff_firebase_main_section',
-        __( 'Firebase Project Credentials', 'backoffice-manager-for-firebase' ),
-        'bomff_firebase_section_cb',
-        'bomff-settings'
-    );
-
-    add_settings_field(
-        'bomff_api_key',
-        __( 'API Key', 'backoffice-manager-for-firebase' ),
-        'bomff_field_api_key_cb',
-        'bomff-settings',
-        'bomff_firebase_main_section'
-    );
-
-    add_settings_field(
-        'bomff_auth_domain',
-        __( 'Auth Domain', 'backoffice-manager-for-firebase' ),
-        'bomff_field_auth_domain_cb',
-        'bomff-settings',
-        'bomff_firebase_main_section'
-    );
-
-    add_settings_field(
-        'bomff_project_id',
-        __( 'Project ID', 'backoffice-manager-for-firebase' ),
-        'bomff_field_project_id_cb',
-        'bomff-settings',
-        'bomff_firebase_main_section'
-    );
-
-    add_settings_field(
-        'bomff_storage_bucket',
-        __( 'Storage Bucket', 'backoffice-manager-for-firebase' ),
-        'bomff_field_storage_bucket_cb',
-        'bomff-settings',
-        'bomff_firebase_main_section'
-    );
-
-    add_settings_field(
-        'bomff_messaging_sender_id',
-        __( 'Messaging Sender ID', 'backoffice-manager-for-firebase' ),
-        'bomff_field_messaging_sender_id_cb',
-        'bomff-settings',
-        'bomff_firebase_main_section'
-    );
-
-    add_settings_field(
-        'bomff_app_id',
-        __( 'App ID', 'backoffice-manager-for-firebase' ),
-        'bomff_field_app_id_cb',
-        'bomff-settings',
-        'bomff_firebase_main_section'
-    );
-}
-add_action( 'admin_init', 'bomff_register_settings' );
-
-function bomff_firebase_section_cb() {
-    echo '<p>' . esc_html__( 'Enter your Firebase project credentials. You can find them in the Firebase Console → Project settings → Your apps → Web app SDK.', 'backoffice-manager-for-firebase' ) . '</p>';
-}
-
-function bomff_get_firebase_option( $key ) {
-    $options = get_option( 'bomff_firebase_config', array() );
-    return isset( $options[ $key ] ) ? esc_attr( $options[ $key ] ) : '';
-}
-
-function bomff_field_api_key_cb() {
-    printf(
-        '<input type="text" name="bomff_firebase_config[apiKey]" value="%s" class="regular-text" />',
-        esc_attr( bomff_get_firebase_option( 'apiKey' ) )
-    );
-}
-
-function bomff_field_auth_domain_cb() {
-    printf(
-        '<input type="text" name="bomff_firebase_config[authDomain]" value="%s" class="regular-text" />',
-        esc_attr( bomff_get_firebase_option( 'authDomain' ) )
-    );
-}
-
-function bomff_field_project_id_cb() {
-    printf(
-        '<input type="text" name="bomff_firebase_config[projectId]" value="%s" class="regular-text" />',
-        esc_attr( bomff_get_firebase_option( 'projectId' ) )
-    );
-}
-
-function bomff_field_storage_bucket_cb() {
-    printf(
-        '<input type="text" name="bomff_firebase_config[storageBucket]" value="%s" class="regular-text" />',
-        esc_attr( bomff_get_firebase_option( 'storageBucket' ) )
-    );
-}
-
-function bomff_field_messaging_sender_id_cb() {
-    printf(
-        '<input type="text" name="bomff_firebase_config[messagingSenderId]" value="%s" class="regular-text" />',
-        esc_attr( bomff_get_firebase_option( 'messagingSenderId' ) )
-    );
-}
-
-function bomff_field_app_id_cb() {
-    printf(
-        '<input type="text" name="bomff_firebase_config[appId]" value="%s" class="regular-text" />',
-        esc_attr( bomff_get_firebase_option( 'appId' ) )
-    );
-}
-
-/**
- * 4) Enqueue scripts and styles (Dashboard + Firestore + Settings)
+ * Assets.
  */
 function bomff_enqueue_admin_scripts( $hook ) {
-
     $page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
     $allowed_pages = array(
@@ -239,41 +87,15 @@ function bomff_enqueue_admin_scripts( $hook ) {
     if ( ! in_array( $page, $allowed_pages, true ) ) {
         return;
     }
-	
-	$css_path = BOMFF_PLUGIN_PATH . 'assets/css/firebase-wp-style.css';
-	$css_ver  = file_exists( $css_path ) ? filemtime( $css_path ) : '1.0';
 
-	wp_enqueue_style(
-		'bomff-admin-style',
-		BOMFF_PLUGIN_URL . 'assets/css/firebase-wp-style.css',
-		array(),
-		$css_ver
-	);
+    $css_path = BOMFF_PLUGIN_PATH . 'assets/css/firebase-wp-style.css';
+    $css_ver  = file_exists( $css_path ) ? filemtime( $css_path ) : '1.0';
 
-    $base = plugin_dir_url( __FILE__ ) . 'assets/vendor/firebasejs/10.12.3/';
-
-    wp_enqueue_script(
-        'firebase-app-sdk',
-        $base . 'firebase-app-compat.js',
+    wp_enqueue_style(
+        'bomff-admin-style',
+        BOMFF_PLUGIN_URL . 'assets/css/firebase-wp-style.css',
         array(),
-        '10.12.3',
-        true
-    );
-
-    wp_enqueue_script(
-        'firebase-firestore-sdk',
-        $base . 'firebase-firestore-compat.js',
-        array( 'firebase-app-sdk' ),
-        '10.12.3',
-        true
-    );	
-
-    wp_enqueue_script(
-        'firebase-auth-sdk',
-        $base . 'firebase-auth-compat.js',
-        array( 'firebase-app-sdk' ),
-        '10.12.3',
-        true
+        $css_ver
     );
 
     $js_path = BOMFF_PLUGIN_PATH . 'bomff-scripts.js';
@@ -282,35 +104,447 @@ function bomff_enqueue_admin_scripts( $hook ) {
     wp_enqueue_script(
         'bomff-admin-js',
         BOMFF_PLUGIN_URL . 'bomff-scripts.js',
-        array( 'firebase-app-sdk', 'firebase-firestore-sdk', 'firebase-auth-sdk' ),
+        array(),
         $js_ver,
         true
     );
 
-    // Pass config to JS
-    $firebase_options = get_option( 'bomff_firebase_config', array() );
-
-    $firebase_config = array(
-        'apiKey'            => isset( $firebase_options['apiKey'] ) ? $firebase_options['apiKey'] : '',
-        'authDomain'        => isset( $firebase_options['authDomain'] ) ? $firebase_options['authDomain'] : '',
-        'projectId'         => isset( $firebase_options['projectId'] ) ? $firebase_options['projectId'] : '',
-        'storageBucket'     => isset( $firebase_options['storageBucket'] ) ? $firebase_options['storageBucket'] : '',
-        'messagingSenderId' => isset( $firebase_options['messagingSenderId'] ) ? $firebase_options['messagingSenderId'] : '',
-        'appId'             => isset( $firebase_options['appId'] ) ? $firebase_options['appId'] : '',
-        'ajaxUrl'           => admin_url( 'admin-ajax.php' ),
-        'nonce'             => wp_create_nonce( 'bomff_ajax' ),
-        'isPro'             => (bool) apply_filters( 'bomff_is_pro', false ),
-    );
+    $service_account = bomff_get_service_account();
 
     wp_localize_script(
         'bomff-admin-js',
         'bomffFirebaseConfig',
-        $firebase_config
+        array(
+            'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
+            'settingsUrl' => admin_url( 'admin.php?page=bomff-settings' ),
+            'nonce'       => wp_create_nonce( 'bomff_ajax' ),
+            'isPro'       => (bool) apply_filters( 'bomff_is_pro', false ),
+            'configured'  => (bool) $service_account,
+            'projectId'   => is_array( $service_account ) && ! empty( $service_account['project_id'] ) ? $service_account['project_id'] : '',
+        )
     );
-	
-	do_action( 'bomff_admin_enqueue_after', $page, $hook );
+
+    do_action( 'bomff_admin_enqueue_after', $page, $hook );
 }
 add_action( 'admin_enqueue_scripts', 'bomff_enqueue_admin_scripts' );
+
+/**
+ * Service account storage.
+ */
+function bomff_crypto_key() {
+    $material = '';
+    foreach ( array( 'AUTH_KEY', 'SECURE_AUTH_KEY', 'LOGGED_IN_KEY', 'NONCE_KEY' ) as $constant ) {
+        if ( defined( $constant ) ) {
+            $material .= constant( $constant );
+        }
+    }
+
+    if ( empty( $material ) ) {
+        $material = wp_salt( 'auth' );
+    }
+
+    return hash( 'sha256', $material, true );
+}
+
+function bomff_encrypt_secret( $plain_text ) {
+    if ( ! function_exists( 'openssl_encrypt' ) ) {
+        return new WP_Error( 'openssl_missing', __( 'OpenSSL is required to encrypt Firebase credentials.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    $iv     = random_bytes( 16 );
+    $cipher = openssl_encrypt( $plain_text, 'AES-256-CBC', bomff_crypto_key(), OPENSSL_RAW_DATA, $iv );
+
+    if ( false === $cipher ) {
+        return new WP_Error( 'encrypt_failed', __( 'Could not encrypt Firebase credentials.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    return base64_encode( wp_json_encode( array(
+        'iv'   => base64_encode( $iv ),
+        'data' => base64_encode( $cipher ),
+    ) ) );
+}
+
+function bomff_decrypt_secret( $stored ) {
+    if ( empty( $stored ) || ! function_exists( 'openssl_decrypt' ) ) {
+        return '';
+    }
+
+    $decoded = json_decode( base64_decode( $stored ), true );
+    if ( ! is_array( $decoded ) || empty( $decoded['iv'] ) || empty( $decoded['data'] ) ) {
+        return '';
+    }
+
+    $iv     = base64_decode( $decoded['iv'] );
+    $cipher = base64_decode( $decoded['data'] );
+
+    $plain = openssl_decrypt( $cipher, 'AES-256-CBC', bomff_crypto_key(), OPENSSL_RAW_DATA, $iv );
+
+    return false === $plain ? '' : $plain;
+}
+
+function bomff_validate_service_account( $json ) {
+    $data = json_decode( $json, true );
+
+    if ( ! is_array( $data ) ) {
+        return new WP_Error( 'invalid_json', __( 'Invalid JSON file.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    $required = array( 'type', 'project_id', 'private_key', 'client_email', 'token_uri' );
+    foreach ( $required as $key ) {
+        if ( empty( $data[ $key ] ) ) {
+            return new WP_Error( 'missing_key', sprintf( __( 'Missing service account field: %s', 'backoffice-manager-for-firebase' ), $key ) );
+        }
+    }
+
+    if ( 'service_account' !== $data['type'] ) {
+        return new WP_Error( 'invalid_type', __( 'The uploaded file is not a Firebase Service Account JSON.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    return $data;
+}
+
+function bomff_get_service_account() {
+    $path = defined( 'BOMFF_FIREBASE_SERVICE_ACCOUNT_PATH' ) ? BOMFF_FIREBASE_SERVICE_ACCOUNT_PATH : '';
+
+    if ( ! empty( $path ) && file_exists( $path ) && is_readable( $path ) ) {
+        $json = file_get_contents( $path );
+        $data = bomff_validate_service_account( $json );
+        return is_wp_error( $data ) ? null : $data;
+    }
+
+    $stored = get_option( 'bomff_service_account_encrypted', '' );
+    if ( empty( $stored ) ) {
+        return null;
+    }
+
+    $json = bomff_decrypt_secret( $stored );
+    if ( empty( $json ) ) {
+        return null;
+    }
+
+    $data = bomff_validate_service_account( $json );
+    return is_wp_error( $data ) ? null : $data;
+}
+
+function bomff_handle_service_account_upload() {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
+        wp_die( esc_html__( 'Unauthorized.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    check_admin_referer( 'bomff_save_service_account' );
+
+    if ( empty( $_FILES['bomff_service_account_json']['tmp_name'] ) ) {
+        wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Please select a Service Account JSON file.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    $file = $_FILES['bomff_service_account_json'];
+
+    if ( ! empty( $file['error'] ) ) {
+        wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Upload failed.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    $json = file_get_contents( $file['tmp_name'] );
+    $data = bomff_validate_service_account( $json );
+
+    if ( is_wp_error( $data ) ) {
+        wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( $data->get_error_message() ) ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    $encrypted = bomff_encrypt_secret( $json );
+    if ( is_wp_error( $encrypted ) ) {
+        wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( $encrypted->get_error_message() ) ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    update_option( 'bomff_service_account_encrypted', $encrypted, false );
+    delete_transient( 'bomff_firebase_access_token' );
+
+    wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_saved' => '1' ), admin_url( 'admin.php' ) ) );
+    exit;
+}
+add_action( 'admin_post_bomff_save_service_account', 'bomff_handle_service_account_upload' );
+
+function bomff_handle_service_account_delete() {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
+        wp_die( esc_html__( 'Unauthorized.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    check_admin_referer( 'bomff_delete_service_account' );
+
+    delete_option( 'bomff_service_account_encrypted' );
+    delete_transient( 'bomff_firebase_access_token' );
+
+    wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_deleted' => '1' ), admin_url( 'admin.php' ) ) );
+    exit;
+}
+add_action( 'admin_post_bomff_delete_service_account', 'bomff_handle_service_account_delete' );
+
+/**
+ * Firebase REST API.
+ */
+function bomff_base64url_encode( $data ) {
+    return rtrim( strtr( base64_encode( $data ), '+/', '-_' ), '=' );
+}
+
+function bomff_get_access_token() {
+    $cached = get_transient( 'bomff_firebase_access_token' );
+    if ( ! empty( $cached ) ) {
+        return $cached;
+    }
+
+    $service_account = bomff_get_service_account();
+    if ( ! $service_account ) {
+        return new WP_Error( 'not_configured', __( 'Firebase Service Account is not configured.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    $now = time();
+
+    $header = array(
+        'alg' => 'RS256',
+        'typ' => 'JWT',
+    );
+
+    $claim = array(
+        'iss'   => $service_account['client_email'],
+        'scope' => 'https://www.googleapis.com/auth/datastore',
+        'aud'   => $service_account['token_uri'],
+        'iat'   => $now,
+        'exp'   => $now + 3600,
+    );
+
+    $segments = array(
+        bomff_base64url_encode( wp_json_encode( $header ) ),
+        bomff_base64url_encode( wp_json_encode( $claim ) ),
+    );
+
+    $signing_input = implode( '.', $segments );
+    $signature     = '';
+
+    $ok = openssl_sign( $signing_input, $signature, $service_account['private_key'], 'sha256WithRSAEncryption' );
+    if ( ! $ok ) {
+        return new WP_Error( 'jwt_sign_failed', __( 'Could not sign Firebase authentication request.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    $jwt = $signing_input . '.' . bomff_base64url_encode( $signature );
+
+    $response = wp_remote_post(
+        $service_account['token_uri'],
+        array(
+            'timeout' => 20,
+            'body'    => array(
+                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion'  => $jwt,
+            ),
+        )
+    );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $code = wp_remote_retrieve_response_code( $response );
+    $body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+    if ( 200 !== $code || empty( $body['access_token'] ) ) {
+        return new WP_Error( 'token_failed', __( 'Could not obtain Firebase access token.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    set_transient( 'bomff_firebase_access_token', $body['access_token'], max( 60, intval( $body['expires_in'] ?? 3600 ) - 120 ) );
+
+    return $body['access_token'];
+}
+
+function bomff_firestore_url( $path = '', $query = array() ) {
+    $service_account = bomff_get_service_account();
+    if ( ! $service_account || empty( $service_account['project_id'] ) ) {
+        return new WP_Error( 'not_configured', __( 'Firebase Service Account is not configured.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    $base = sprintf(
+        'https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents',
+        rawurlencode( $service_account['project_id'] )
+    );
+
+    if ( '' !== $path ) {
+        $base .= '/' . ltrim( $path, '/' );
+    }
+
+    if ( ! empty( $query ) ) {
+        $base .= '?' . http_build_query( $query );
+    }
+
+    return $base;
+}
+
+function bomff_firestore_request( $method, $path = '', $body = null, $query = array() ) {
+    $token = bomff_get_access_token();
+    if ( is_wp_error( $token ) ) {
+        return $token;
+    }
+
+    $url = bomff_firestore_url( $path, $query );
+    if ( is_wp_error( $url ) ) {
+        return $url;
+    }
+
+    $args = array(
+        'method'  => $method,
+        'timeout' => 30,
+        'headers' => array(
+            'Authorization' => 'Bearer ' . $token,
+            'Content-Type'  => 'application/json',
+        ),
+    );
+
+    if ( null !== $body ) {
+        $args['body'] = wp_json_encode( $body );
+    }
+
+    $response = wp_remote_request( $url, $args );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    $code     = wp_remote_retrieve_response_code( $response );
+    $raw_body = wp_remote_retrieve_body( $response );
+    $json     = '' !== $raw_body ? json_decode( $raw_body, true ) : array();
+
+    if ( $code < 200 || $code >= 300 ) {
+        $message = isset( $json['error']['message'] ) ? $json['error']['message'] : __( 'Firestore request failed.', 'backoffice-manager-for-firebase' );
+        return new WP_Error( 'firestore_error', $message, array( 'status' => $code ) );
+    }
+
+    return is_array( $json ) ? $json : array();
+}
+
+function bomff_clean_collection_or_doc_id( $value ) {
+    $value = sanitize_text_field( wp_unslash( $value ) );
+    $value = trim( $value, " \t\n\r\0\x0B/" );
+
+    if ( '' === $value || preg_match( '#(^|/)\.\.?($|/)#', $value ) ) {
+        return '';
+    }
+
+    return preg_replace( '#[^A-Za-z0-9_\-/]#', '', $value );
+}
+
+function bomff_php_to_firestore_value( $value ) {
+    if ( is_null( $value ) ) {
+        return array( 'nullValue' => null );
+    }
+
+    if ( is_bool( $value ) ) {
+        return array( 'booleanValue' => $value );
+    }
+
+    if ( is_int( $value ) ) {
+        return array( 'integerValue' => (string) $value );
+    }
+
+    if ( is_float( $value ) ) {
+        return array( 'doubleValue' => $value );
+    }
+
+    if ( is_array( $value ) ) {
+        if ( isset( $value['_type'] ) && 'timestamp' === $value['_type'] && ! empty( $value['seconds'] ) ) {
+            return array( 'timestampValue' => gmdate( 'Y-m-d\TH:i:s\Z', intval( $value['seconds'] ) ) );
+        }
+
+        $is_list = array_keys( $value ) === range( 0, count( $value ) - 1 );
+        if ( $is_list ) {
+            return array(
+                'arrayValue' => array(
+                    'values' => array_map( 'bomff_php_to_firestore_value', $value ),
+                ),
+            );
+        }
+
+        $fields = array();
+        foreach ( $value as $k => $v ) {
+            $fields[ $k ] = bomff_php_to_firestore_value( $v );
+        }
+
+        return array(
+            'mapValue' => array(
+                'fields' => $fields,
+            ),
+        );
+    }
+
+    return array( 'stringValue' => (string) $value );
+}
+
+function bomff_firestore_value_to_php( $value ) {
+    if ( isset( $value['nullValue'] ) ) {
+        return null;
+    }
+    if ( isset( $value['booleanValue'] ) ) {
+        return (bool) $value['booleanValue'];
+    }
+    if ( isset( $value['integerValue'] ) ) {
+        return intval( $value['integerValue'] );
+    }
+    if ( isset( $value['doubleValue'] ) ) {
+        return floatval( $value['doubleValue'] );
+    }
+    if ( isset( $value['stringValue'] ) ) {
+        return $value['stringValue'];
+    }
+    if ( isset( $value['timestampValue'] ) ) {
+        return array(
+            '_type' => 'timestamp',
+            'iso'   => $value['timestampValue'],
+        );
+    }
+    if ( isset( $value['arrayValue'] ) ) {
+        $values = isset( $value['arrayValue']['values'] ) ? $value['arrayValue']['values'] : array();
+        return array_map( 'bomff_firestore_value_to_php', $values );
+    }
+    if ( isset( $value['mapValue'] ) ) {
+        $fields = isset( $value['mapValue']['fields'] ) ? $value['mapValue']['fields'] : array();
+        $out    = array();
+        foreach ( $fields as $k => $v ) {
+            $out[ $k ] = bomff_firestore_value_to_php( $v );
+        }
+        return $out;
+    }
+
+    return null;
+}
+
+function bomff_firestore_document_to_php( $doc ) {
+    $name  = isset( $doc['name'] ) ? $doc['name'] : '';
+    $parts = explode( '/', $name );
+    $id    = end( $parts );
+
+    $fields = isset( $doc['fields'] ) ? $doc['fields'] : array();
+    $data   = array();
+
+    foreach ( $fields as $k => $v ) {
+        $data[ $k ] = bomff_firestore_value_to_php( $v );
+    }
+
+    return array(
+        'id'         => $id,
+        'data'       => $data,
+        'createTime' => isset( $doc['createTime'] ) ? $doc['createTime'] : '',
+        'updateTime' => isset( $doc['updateTime'] ) ? $doc['updateTime'] : '',
+    );
+}
+
+function bomff_php_to_firestore_document( $data ) {
+    $fields = array();
+
+    foreach ( $data as $k => $v ) {
+        $fields[ $k ] = bomff_php_to_firestore_value( $v );
+    }
+
+    return array( 'fields' => $fields );
+}
 
 /**
  * Active structure (only one). Stored as a WordPress option.
@@ -321,7 +555,7 @@ function bomff_get_active_structure() {
 }
 
 function bomff_ajax_require_admin() {
-    if ( ! current_user_can( 'manage_options' ) ) {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
         wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'backoffice-manager-for-firebase' ) ), 403 );
     }
 
@@ -330,6 +564,163 @@ function bomff_ajax_require_admin() {
         wp_send_json_error( array( 'message' => __( 'Invalid nonce.', 'backoffice-manager-for-firebase' ) ), 403 );
     }
 }
+
+function bomff_ajax_get_status() {
+    bomff_ajax_require_admin();
+
+    $service_account = bomff_get_service_account();
+
+    if ( ! $service_account ) {
+        wp_send_json_success(
+            array(
+                'configured' => false,
+                'projectId'  => '',
+                'message'    => __( 'Firebase Service Account is not configured.', 'backoffice-manager-for-firebase' ),
+            )
+        );
+    }
+
+    wp_send_json_success(
+        array(
+            'configured'  => true,
+            'projectId'   => isset( $service_account['project_id'] ) ? $service_account['project_id'] : '',
+            'clientEmail' => isset( $service_account['client_email'] ) ? $service_account['client_email'] : '',
+        )
+    );
+}
+add_action( 'wp_ajax_bomff_get_status', 'bomff_ajax_get_status' );
+
+function bomff_ajax_list_documents() {
+    bomff_ajax_require_admin();
+
+    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( $_POST['collection'] ) : '';
+    $page_size  = isset( $_POST['pageSize'] ) ? max( 1, min( 100, intval( $_POST['pageSize'] ) ) ) : 25;
+    $page_token = isset( $_POST['pageToken'] ) ? sanitize_text_field( wp_unslash( $_POST['pageToken'] ) ) : '';
+
+    if ( empty( $collection ) ) {
+        wp_send_json_error( array( 'message' => __( 'Empty collection.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    $query = array(
+        'pageSize' => $page_size,
+        'orderBy'  => '__name__',
+    );
+
+    if ( ! empty( $page_token ) ) {
+        $query['pageToken'] = $page_token;
+    }
+
+    $response = bomff_firestore_request( 'GET', $collection, null, $query );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+    }
+
+    $documents = array();
+    foreach ( $response['documents'] ?? array() as $doc ) {
+        $documents[] = bomff_firestore_document_to_php( $doc );
+    }
+
+    wp_send_json_success(
+        array(
+            'documents'     => $documents,
+            'nextPageToken' => isset( $response['nextPageToken'] ) ? $response['nextPageToken'] : '',
+        )
+    );
+}
+add_action( 'wp_ajax_bomff_list_documents', 'bomff_ajax_list_documents' );
+
+function bomff_ajax_get_document() {
+    bomff_ajax_require_admin();
+
+    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( $_POST['collection'] ) : '';
+    $doc_id     = isset( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( $_POST['docId'] ) : '';
+
+    if ( empty( $collection ) || empty( $doc_id ) ) {
+        wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    $response = bomff_firestore_request( 'GET', $collection . '/' . $doc_id );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+    }
+
+    wp_send_json_success(
+        array(
+            'document' => bomff_firestore_document_to_php( $response ),
+        )
+    );
+}
+add_action( 'wp_ajax_bomff_get_document', 'bomff_ajax_get_document' );
+
+function bomff_ajax_save_document() {
+    bomff_ajax_require_admin();
+
+    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( $_POST['collection'] ) : '';
+    $doc_id     = isset( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( $_POST['docId'] ) : '';
+    $data_raw   = isset( $_POST['data'] ) ? wp_unslash( $_POST['data'] ) : '';
+
+    if ( empty( $collection ) || empty( $doc_id ) ) {
+        wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    $data = json_decode( $data_raw, true );
+    if ( ! is_array( $data ) ) {
+        wp_send_json_error( array( 'message' => __( 'Invalid JSON data.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    $existing_response = bomff_firestore_request( 'GET', $collection . '/' . $doc_id );
+    $existing_fields   = array();
+
+    if ( ! is_wp_error( $existing_response ) && ! empty( $existing_response['fields'] ) ) {
+        $existing_fields = array_keys( $existing_response['fields'] );
+    }
+
+    $all_fields = array_values( array_unique( array_merge( $existing_fields, array_keys( $data ) ) ) );
+
+    $query = array();
+    foreach ( $all_fields as $field ) {
+        $query['updateMask.fieldPaths'][] = $field;
+    }
+
+    $response = bomff_firestore_request( 'PATCH', $collection . '/' . $doc_id, bomff_php_to_firestore_document( $data ), $query );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+    }
+
+    do_action( 'bomff_firestore_document_saved', get_current_user_id(), $collection, $doc_id, $data );
+
+    wp_send_json_success(
+        array(
+            'document' => bomff_firestore_document_to_php( $response ),
+        )
+    );
+}
+add_action( 'wp_ajax_bomff_save_document', 'bomff_ajax_save_document' );
+
+function bomff_ajax_delete_document() {
+    bomff_ajax_require_admin();
+
+    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( $_POST['collection'] ) : '';
+    $doc_id     = isset( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( $_POST['docId'] ) : '';
+
+    if ( empty( $collection ) || empty( $doc_id ) ) {
+        wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    $response = bomff_firestore_request( 'DELETE', $collection . '/' . $doc_id );
+
+    if ( is_wp_error( $response ) ) {
+        wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
+    }
+
+    do_action( 'bomff_firestore_document_deleted', get_current_user_id(), $collection, $doc_id );
+
+    wp_send_json_success( array( 'deleted' => true ) );
+}
+add_action( 'wp_ajax_bomff_delete_document', 'bomff_ajax_delete_document' );
 
 function bomff_ajax_get_structure() {
     bomff_ajax_require_admin();
@@ -353,7 +744,6 @@ function bomff_ajax_save_structure() {
         wp_send_json_error( array( 'message' => __( 'Invalid fields.', 'backoffice-manager-for-firebase' ) ), 400 );
     }
 
-    // Sanitize fields: { name, type, required?, auto? }
     $clean_fields = array();
     foreach ( $fields as $f ) {
         if ( ! is_array( $f ) ) {
@@ -367,14 +757,11 @@ function bomff_ajax_save_structure() {
             continue;
         }
 
-        $required = ! empty( $f['required'] );
-        $auto     = ! empty( $f['auto'] );
-
         $clean_fields[] = array(
             'name'     => $name,
             'type'     => $type,
-            'required' => $required,
-            'auto'     => $auto,
+            'required' => ! empty( $f['required'] ),
+            'auto'     => ! empty( $f['auto'] ),
         );
     }
 
