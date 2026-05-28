@@ -27,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPageToken = '';
     let lastDocs = [];
     let activeStructure = null;
+    let editState = null;
+    let fieldEditState = null;
 
     function escapeHtml(value) {
         return String(value ?? '')
@@ -61,9 +63,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setExplorerEnabled(enabled) {
-        [collectionInputEl, loadCollectionBtn, clearResultsBtn, loadDocBtn, docIdInputEl, pageSizeEl, prevPageBtn, nextPageBtn, importStructureBtn, createDocBtn, deleteStructureBtn, viewStructureBtn].forEach((el) => {
+        [collectionInputEl, loadCollectionBtn, clearResultsBtn, loadDocBtn, docIdInputEl, pageSizeEl, importStructureBtn].forEach((el) => {
             if (el) el.disabled = !enabled;
         });
+        if (!enabled) {
+            if (prevPageBtn) prevPageBtn.disabled = true;
+            if (nextPageBtn) nextPageBtn.disabled = true;
+            if (createDocBtn) createDocBtn.disabled = true;
+            if (deleteStructureBtn) deleteStructureBtn.disabled = true;
+            if (viewStructureBtn) viewStructureBtn.disabled = true;
+        }
     }
 
     async function wpAjax(action, payload = {}) {
@@ -95,14 +104,40 @@ document.addEventListener('DOMContentLoaded', () => {
         if (value === null || value === undefined) return '—';
         if (typeof value === 'boolean') return value ? 'true' : 'false';
         if (typeof value === 'number') return String(value);
-        if (typeof value === 'string') {
-            if (value.length > 60) return `${value.slice(0, 60)}…`;
-            return value;
-        }
+        if (typeof value === 'string') return value.length > 60 ? `${value.slice(0, 60)}…` : value;
         if (Array.isArray(value)) return `[${value.length}]`;
         if (typeof value === 'object' && value._type === 'timestamp') return value.iso || 'Timestamp';
         if (typeof value === 'object') return 'Object';
         return String(value);
+    }
+
+    function valueType(value) {
+        if (value === null || value === undefined) return 'null';
+        if (Array.isArray(value)) return 'array';
+        if (typeof value === 'object' && value._type === 'timestamp') return 'timestamp';
+        if (typeof value === 'object') return 'map';
+        return typeof value;
+    }
+
+    function inputValueForField(value) {
+        if (value === null || value === undefined) return '';
+        if (typeof value === 'object') return JSON.stringify(value, null, 2);
+        return String(value);
+    }
+
+    function parseFieldValue(raw, type) {
+        if (type === 'number') {
+            const n = Number(raw);
+            if (Number.isNaN(n)) throw new Error('Invalid number.');
+            return n;
+        }
+        if (type === 'boolean') {
+            return raw === true || raw === 'true' || raw === '1';
+        }
+        if (type === 'array' || type === 'map' || type === 'timestamp' || type === 'null') {
+            return raw.trim() === '' ? null : JSON.parse(raw);
+        }
+        return raw;
     }
 
     function clearTable(message = 'Enter a collection and click “Load”.') {
@@ -156,7 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return `
                 <tr data-doc-id="${escapeHtml(doc.id)}">
                     <td><code>${escapeHtml(doc.id)}</code></td>
-                    ${columns.map((col) => `<td>${escapeHtml(compactValue(data[col]))}</td>`).join('')}
+                    ${columns.map((col) => {
+                        const value = data[col];
+                        return `<td class="bomff-editable-cell" title="Double-click to edit" data-doc-id="${escapeHtml(doc.id)}" data-field="${escapeHtml(col)}" data-type="${escapeHtml(valueType(value))}">${escapeHtml(compactValue(value))}</td>`;
+                    }).join('')}
                     <td>${otherFields.length ? escapeHtml(otherFields.join(', ')) : '—'}</td>
                     <td class="bomff-col-actions">
                         <button class="button button-small" type="button" data-action="view" data-doc-id="${escapeHtml(doc.id)}">View</button>
@@ -166,6 +204,119 @@ document.addEventListener('DOMContentLoaded', () => {
                 </tr>
             `;
         }).join('');
+    }
+
+    function ensureModals() {
+        if (!document.getElementById('bomff-runtime-modal-style')) {
+            const style = document.createElement('style');
+            style.id = 'bomff-runtime-modal-style';
+            style.textContent = `
+                .bomff-runtime-modal{display:none;position:fixed;z-index:100000;inset:0;background:rgba(0,0,0,.45);}
+                .bomff-runtime-modal.is-open{display:block;}
+                .bomff-runtime-panel{background:#fff;max-width:920px;margin:6vh auto;border-radius:8px;box-shadow:0 15px 45px rgba(0,0,0,.25);overflow:hidden;}
+                .bomff-runtime-panel--small{max-width:620px;}
+                .bomff-runtime-header,.bomff-runtime-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #ddd;}
+                .bomff-runtime-footer{border-top:1px solid #ddd;border-bottom:0;justify-content:flex-end;}
+                .bomff-runtime-header h2{margin:0;font-size:18px;}
+                .bomff-runtime-body{padding:18px;}
+                .bomff-runtime-meta{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;color:#555;}
+                .bomff-runtime-textarea{width:100%;min-height:360px;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.45;}
+                .bomff-runtime-textarea--small{min-height:180px;}
+                .bomff-runtime-error{display:none;color:#b32d2e;margin-top:10px;}
+            `;
+            document.head.appendChild(style);
+        }
+
+        if (!document.getElementById('bomff-edit-document-modal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div id="bomff-edit-document-modal" class="bomff-runtime-modal" aria-hidden="true">
+                    <div class="bomff-runtime-panel" role="dialog" aria-modal="true">
+                        <div class="bomff-runtime-header">
+                            <h2>Edit document</h2>
+                            <button class="button" type="button" data-modal-close="bomff-edit-document-modal">✕</button>
+                        </div>
+                        <div class="bomff-runtime-body">
+                            <div class="bomff-runtime-meta">
+                                <div><strong>Collection:</strong> <code id="bomff-edit-modal-collection"></code></div>
+                                <div><strong>Doc ID:</strong> <code id="bomff-edit-modal-docid"></code></div>
+                            </div>
+                            <textarea id="bomff-edit-modal-json" class="bomff-runtime-textarea" spellcheck="false"></textarea>
+                            <div id="bomff-edit-modal-error" class="bomff-runtime-error"></div>
+                        </div>
+                        <div class="bomff-runtime-footer">
+                            <button class="button" type="button" data-modal-close="bomff-edit-document-modal">Cancel</button>
+                            <button id="bomff-edit-modal-save" class="button button-primary" type="button">Save changes</button>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        if (!document.getElementById('bomff-field-edit-modal')) {
+            document.body.insertAdjacentHTML('beforeend', `
+                <div id="bomff-field-edit-modal" class="bomff-runtime-modal" aria-hidden="true">
+                    <div class="bomff-runtime-panel bomff-runtime-panel--small" role="dialog" aria-modal="true">
+                        <div class="bomff-runtime-header">
+                            <h2>Quick field edit</h2>
+                            <button class="button" type="button" data-modal-close="bomff-field-edit-modal">✕</button>
+                        </div>
+                        <div class="bomff-runtime-body">
+                            <div class="bomff-runtime-meta">
+                                <div><strong>Doc ID:</strong> <code id="bomff-field-modal-docid"></code></div>
+                                <div><strong>Field:</strong> <code id="bomff-field-modal-field"></code></div>
+                                <div><strong>Type:</strong> <code id="bomff-field-modal-type"></code></div>
+                            </div>
+                            <div id="bomff-field-modal-input-wrap"></div>
+                            <div id="bomff-field-modal-error" class="bomff-runtime-error"></div>
+                        </div>
+                        <div class="bomff-runtime-footer">
+                            <button class="button" type="button" data-modal-close="bomff-field-edit-modal">Cancel</button>
+                            <button id="bomff-field-modal-save" class="button button-primary" type="button">Save field</button>
+                        </div>
+                    </div>
+                </div>
+            `);
+        }
+
+        document.querySelectorAll('[data-modal-close]').forEach((btn) => {
+            if (btn.dataset.boundClose) return;
+            btn.dataset.boundClose = '1';
+            btn.addEventListener('click', () => closeModal(btn.getAttribute('data-modal-close')));
+        });
+
+        const editSave = document.getElementById('bomff-edit-modal-save');
+        if (editSave && !editSave.dataset.boundSave) {
+            editSave.dataset.boundSave = '1';
+            editSave.addEventListener('click', saveEditModal);
+        }
+
+        const fieldSave = document.getElementById('bomff-field-modal-save');
+        if (fieldSave && !fieldSave.dataset.boundSave) {
+            fieldSave.dataset.boundSave = '1';
+            fieldSave.addEventListener('click', saveFieldModal);
+        }
+    }
+
+    function openModal(id) {
+        ensureModals();
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        modal.classList.add('is-open');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal(id) {
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function setModalError(id, message) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = message || '';
+        el.style.display = message ? 'block' : 'none';
     }
 
     async function loadCollection(pageToken = '') {
@@ -194,9 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (prevPageBtn) prevPageBtn.disabled = pageStack.length === 0;
             if (nextPageBtn) nextPageBtn.disabled = !nextPageToken;
 
-            try {
-                window.localStorage.setItem('bomff_last_collection', collection);
-            } catch (e) {}
+            try { window.localStorage.setItem('bomff_last_collection', collection); } catch (e) {}
 
             setMessage(`Loaded ${(data.documents || []).length} document(s).`, true);
         } catch (e) {
@@ -232,24 +381,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function getFreshDocument(docId) {
-        const data = await wpAjax('bomff_get_document', {
-            collection: currentCollection,
-            docId,
-        });
+        const data = await wpAjax('bomff_get_document', { collection: currentCollection, docId });
         return data.document;
     }
 
     async function viewDocument(docId) {
         try {
             const doc = await getFreshDocument(docId);
-            const pretty = JSON.stringify(doc.data || {}, null, 2);
-            const popup = window.open('', '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes');
-            if (popup) {
-                popup.document.write(`<pre style="white-space:pre-wrap;font:14px/1.4 monospace;padding:20px;">${escapeHtml(pretty)}</pre>`);
-                popup.document.close();
-            } else {
-                alert(pretty);
-            }
+            editState = { docId, data: doc.data || {}, readOnly: true };
+            document.getElementById('bomff-edit-modal-collection').textContent = currentCollection;
+            document.getElementById('bomff-edit-modal-docid').textContent = docId;
+            document.getElementById('bomff-edit-modal-json').value = JSON.stringify(editState.data, null, 2);
+            document.getElementById('bomff-edit-modal-json').readOnly = true;
+            document.getElementById('bomff-edit-modal-save').style.display = 'none';
+            setModalError('bomff-edit-modal-error', '');
+            openModal('bomff-edit-document-modal');
         } catch (e) {
             console.error(e);
             setMessage(e.message || 'Could not load document.', false);
@@ -259,42 +405,129 @@ document.addEventListener('DOMContentLoaded', () => {
     async function editDocument(docId) {
         try {
             const doc = await getFreshDocument(docId);
-            const current = JSON.stringify(doc.data || {}, null, 2);
-            const updated = prompt('Edit document JSON:', current);
+            editState = { docId, data: doc.data || {}, readOnly: false };
+            document.getElementById('bomff-edit-modal-collection').textContent = currentCollection;
+            document.getElementById('bomff-edit-modal-docid').textContent = docId;
+            document.getElementById('bomff-edit-modal-json').value = JSON.stringify(editState.data, null, 2);
+            document.getElementById('bomff-edit-modal-json').readOnly = false;
+            document.getElementById('bomff-edit-modal-save').style.display = '';
+            setModalError('bomff-edit-modal-error', '');
+            openModal('bomff-edit-document-modal');
+        } catch (e) {
+            console.error(e);
+            setMessage(e.message || 'Could not load document.', false);
+        }
+    }
 
-            if (updated === null) return;
+    async function saveEditModal() {
+        if (!editState || editState.readOnly) return;
+        const textarea = document.getElementById('bomff-edit-modal-json');
+        const saveBtn = document.getElementById('bomff-edit-modal-save');
 
-            let parsed;
-            try {
-                parsed = JSON.parse(updated);
-            } catch (e) {
-                setMessage(`Invalid JSON: ${e.message}`, false);
-                return;
-            }
+        let parsed;
+        try {
+            parsed = JSON.parse(textarea.value || '{}');
+        } catch (e) {
+            setModalError('bomff-edit-modal-error', `Invalid JSON: ${e.message}`);
+            return;
+        }
 
+        try {
+            saveBtn.disabled = true;
+            setModalError('bomff-edit-modal-error', '');
             await wpAjax('bomff_save_document', {
                 collection: currentCollection,
-                docId,
+                docId: editState.docId,
                 data: JSON.stringify(parsed),
             });
-
+            closeModal('bomff-edit-document-modal');
             setMessage('Document saved.', true);
             await loadCollection(currentPageToken);
         } catch (e) {
             console.error(e);
-            setMessage(e.message || 'Could not save document.', false);
+            setModalError('bomff-edit-modal-error', e.message || 'Could not save document.');
+        } finally {
+            saveBtn.disabled = false;
+        }
+    }
+
+    async function openFieldEditor(docId, field) {
+        try {
+            const doc = await getFreshDocument(docId);
+            const value = (doc.data || {})[field];
+            const type = valueType(value);
+            fieldEditState = { docId, field, type, docData: doc.data || {} };
+
+            document.getElementById('bomff-field-modal-docid').textContent = docId;
+            document.getElementById('bomff-field-modal-field').textContent = field;
+            document.getElementById('bomff-field-modal-type').textContent = type;
+
+            const wrap = document.getElementById('bomff-field-modal-input-wrap');
+            if (type === 'boolean') {
+                wrap.innerHTML = `
+                    <label style="display:flex;gap:8px;align-items:center;">
+                        <input id="bomff-field-modal-value" type="checkbox" ${value ? 'checked' : ''} />
+                        <span>Enabled / true</span>
+                    </label>
+                `;
+            } else if (type === 'number') {
+                wrap.innerHTML = `<input id="bomff-field-modal-value" type="number" step="any" class="regular-text" value="${escapeHtml(inputValueForField(value))}" />`;
+            } else if (type === 'array' || type === 'map' || type === 'timestamp' || type === 'null') {
+                wrap.innerHTML = `<textarea id="bomff-field-modal-value" class="bomff-runtime-textarea bomff-runtime-textarea--small" spellcheck="false">${escapeHtml(inputValueForField(value))}</textarea>`;
+            } else {
+                wrap.innerHTML = `<textarea id="bomff-field-modal-value" class="bomff-runtime-textarea bomff-runtime-textarea--small" spellcheck="false">${escapeHtml(inputValueForField(value))}</textarea>`;
+            }
+
+            setModalError('bomff-field-modal-error', '');
+            openModal('bomff-field-edit-modal');
+        } catch (e) {
+            console.error(e);
+            setMessage(e.message || 'Could not load field.', false);
+        }
+    }
+
+    async function saveFieldModal() {
+        if (!fieldEditState) return;
+
+        const input = document.getElementById('bomff-field-modal-value');
+        const saveBtn = document.getElementById('bomff-field-modal-save');
+
+        let nextValue;
+        try {
+            const raw = input.type === 'checkbox' ? input.checked : input.value;
+            nextValue = parseFieldValue(raw, fieldEditState.type);
+        } catch (e) {
+            setModalError('bomff-field-modal-error', e.message || 'Invalid field value.');
+            return;
+        }
+
+        const nextData = Object.assign({}, fieldEditState.docData, {
+            [fieldEditState.field]: nextValue,
+        });
+
+        try {
+            saveBtn.disabled = true;
+            setModalError('bomff-field-modal-error', '');
+            await wpAjax('bomff_save_document', {
+                collection: currentCollection,
+                docId: fieldEditState.docId,
+                data: JSON.stringify(nextData),
+            });
+            closeModal('bomff-field-edit-modal');
+            setMessage('Field saved.', true);
+            await loadCollection(currentPageToken);
+        } catch (e) {
+            console.error(e);
+            setModalError('bomff-field-modal-error', e.message || 'Could not save field.');
+        } finally {
+            saveBtn.disabled = false;
         }
     }
 
     async function deleteDocument(docId) {
         if (!confirm(`Delete document “${docId}”?`)) return;
-
         try {
-            await wpAjax('bomff_delete_document', {
-                collection: currentCollection,
-                docId,
-            });
-
+            await wpAjax('bomff_delete_document', { collection: currentCollection, docId });
             setMessage('Document deleted.', true);
             await loadCollection(currentPageToken);
         } catch (e) {
@@ -308,12 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         docs.forEach((doc) => {
             Object.entries(doc.data || {}).forEach(([key, value]) => {
                 if (!fields.has(key)) {
-                    fields.set(key, {
-                        name: key,
-                        type: Array.isArray(value) ? 'array' : (value && typeof value === 'object' ? 'map' : typeof value),
-                        required: false,
-                        auto: false,
-                    });
+                    fields.set(key, { name: key, type: valueType(value), required: false, auto: false });
                 }
             });
         });
@@ -325,22 +553,18 @@ document.addEventListener('DOMContentLoaded', () => {
             setStructureMessage('Load a collection first.', false);
             return;
         }
-
         const fields = inferStructureFromDocs(lastDocs);
         if (!fields.length) {
             setStructureMessage('No fields detected.', false);
             return;
         }
-
         try {
-            const data = await wpAjax('bomff_save_structure', {
-                collection: currentCollection,
-                fields: JSON.stringify(fields),
-            });
+            const data = await wpAjax('bomff_save_structure', { collection: currentCollection, fields: JSON.stringify(fields) });
             activeStructure = data.structure;
             setStructureMessage(`Structure saved for “${currentCollection}”.`, true);
             if (viewStructureBtn) viewStructureBtn.disabled = false;
             if (deleteStructureBtn) deleteStructureBtn.disabled = false;
+            if (createDocBtn) createDocBtn.disabled = false;
         } catch (e) {
             console.error(e);
             setStructureMessage(e.message || 'Could not save structure.', false);
@@ -355,6 +579,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 setStructureMessage(`Active structure: ${activeStructure.collection}`, true);
                 if (viewStructureBtn) viewStructureBtn.disabled = false;
                 if (deleteStructureBtn) deleteStructureBtn.disabled = false;
+                if (createDocBtn) createDocBtn.disabled = false;
             } else {
                 setStructureMessage('No active structure.', false);
             }
@@ -372,6 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setStructureMessage('Structure deleted.', true);
             if (viewStructureBtn) viewStructureBtn.disabled = true;
             if (deleteStructureBtn) deleteStructureBtn.disabled = true;
+            if (createDocBtn) createDocBtn.disabled = true;
         } catch (e) {
             console.error(e);
             setStructureMessage(e.message || 'Could not delete structure.', false);
@@ -386,7 +612,35 @@ document.addEventListener('DOMContentLoaded', () => {
         alert(JSON.stringify(activeStructure, null, 2));
     }
 
+    function createDocument() {
+        const collection = activeStructure && activeStructure.collection ? activeStructure.collection : (collectionInputEl?.value || '').trim();
+        const docId = prompt('New document ID:');
+        if (!docId) return;
+        const json = prompt('Document JSON:', '{}');
+        if (json === null) return;
+
+        try { JSON.parse(json); } catch (e) {
+            setStructureMessage(`Invalid JSON: ${e.message}`, false);
+            return;
+        }
+
+        currentCollection = collection;
+        if (collectionInputEl) collectionInputEl.value = collection;
+
+        wpAjax('bomff_save_document', { collection, docId, data: json })
+            .then(() => {
+                setStructureMessage('Document created.', true);
+                return loadCollection('');
+            })
+            .catch((e) => {
+                console.error(e);
+                setStructureMessage(e.message || 'Could not create document.', false);
+            });
+    }
+
     function bindEvents() {
+        ensureModals();
+
         if (loadCollectionBtn) {
             loadCollectionBtn.addEventListener('click', () => {
                 pageStack = [];
@@ -416,7 +670,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     loadCollection('');
                 }
             });
-
             try {
                 const saved = window.localStorage.getItem('bomff_last_collection');
                 if (saved && !collectionInputEl.value) collectionInputEl.value = saved;
@@ -442,60 +695,39 @@ document.addEventListener('DOMContentLoaded', () => {
             resultsBodyEl.addEventListener('click', (event) => {
                 const button = event.target.closest('button[data-action]');
                 if (!button) return;
-
                 const action = button.dataset.action;
                 const docId = button.dataset.docId;
-
                 if (!docId) return;
-
                 if (action === 'view') viewDocument(docId);
                 if (action === 'edit') editDocument(docId);
                 if (action === 'delete') deleteDocument(docId);
+            });
+
+            resultsBodyEl.addEventListener('dblclick', (event) => {
+                const cell = event.target.closest('.bomff-editable-cell');
+                if (!cell) return;
+                const docId = cell.dataset.docId;
+                const field = cell.dataset.field;
+                if (!docId || !field) return;
+                openFieldEditor(docId, field);
             });
         }
 
         if (importStructureBtn) importStructureBtn.addEventListener('click', importStructure);
         if (viewStructureBtn) viewStructureBtn.addEventListener('click', viewStructure);
         if (deleteStructureBtn) deleteStructureBtn.addEventListener('click', deleteStructure);
+        if (createDocBtn) createDocBtn.addEventListener('click', createDocument);
 
-        if (createDocBtn) {
-            createDocBtn.addEventListener('click', () => {
-                const collection = activeStructure && activeStructure.collection ? activeStructure.collection : (collectionInputEl?.value || '').trim();
-                const docId = prompt('New document ID:');
-                if (!docId) return;
-                const json = prompt('Document JSON:', '{}');
-                if (json === null) return;
-
-                try {
-                    JSON.parse(json);
-                } catch (e) {
-                    setStructureMessage(`Invalid JSON: ${e.message}`, false);
-                    return;
-                }
-
-                currentCollection = collection;
-                if (collectionInputEl) collectionInputEl.value = collection;
-
-                wpAjax('bomff_save_document', {
-                    collection,
-                    docId,
-                    data: json,
-                })
-                    .then(() => {
-                        setStructureMessage('Document created.', true);
-                        return loadCollection('');
-                    })
-                    .catch((e) => {
-                        console.error(e);
-                        setStructureMessage(e.message || 'Could not create document.', false);
-                    });
-            });
-        }
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                closeModal('bomff-edit-document-modal');
+                closeModal('bomff-field-edit-modal');
+            }
+        });
     }
 
     async function init() {
         if (!statusConnectionEl && !collectionInputEl) return;
-
         bindEvents();
         setExplorerEnabled(false);
 
@@ -507,7 +739,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearTable('Configure Firebase first.');
                 return;
             }
-
             setConnectionStatus(`Connected to ${status.projectId || 'Firebase'}`, true);
             showConfigWarning(false);
             setExplorerEnabled(true);
