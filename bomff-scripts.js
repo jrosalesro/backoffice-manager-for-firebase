@@ -192,7 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!lastDocs.length) { els.head.innerHTML = '<th>Doc ID</th><th>Fields</th><th class="bomff-col-actions">Actions</th>'; els.body.innerHTML = '<tr><td colspan="3" class="bomff-center-muted">No documents found.</td></tr>'; return; }
         const columns = columnsFromDocs(lastDocs); const used = new Set(columns);
         els.head.innerHTML = `<th>Doc ID</th>${columns.map((col) => `<th>${esc(col)}</th>`).join('')}<th>Other fields</th><th class="bomff-col-actions">Actions</th>`;
-        els.body.innerHTML = lastDocs.map((doc) => { const data = doc.data || {}; const other = Object.keys(data).filter((key) => !used.has(key)); return `<tr data-doc-id="${esc(doc.id)}"><td><code>${esc(doc.id)}</code></td>${columns.map((col) => `<td class="bomff-editable-cell" title="Double-click to edit" data-doc-id="${esc(doc.id)}" data-field="${esc(col)}">${esc(compact(data[col]))}</td>`).join('')}<td>${other.length ? esc(other.join(', ')) : '—'}</td><td class="bomff-col-actions"><button class="button button-small" data-action="view" data-doc-id="${esc(doc.id)}">View</button> <button class="button button-small" data-action="edit" data-doc-id="${esc(doc.id)}">Edit</button> <button class="button button-small" data-action="delete" data-doc-id="${esc(doc.id)}">Delete</button></td></tr>`; }).join('');
+        els.body.innerHTML = lastDocs.map((doc) => { const data = doc.data || {}; const other = Object.keys(data).filter((key) => !used.has(key)); return `<tr data-doc-id="${esc(doc.id)}"><td><code>${esc(doc.id)}</code></td>${columns.map((col) => `<td class="bomff-editable-cell" title="Double-click to edit" data-doc-id="${esc(doc.id)}" data-field="${esc(col)}">${esc(compact(data[col]))}</td>`).join('')}<td>${other.length ? esc(other.join(', ')) : '—'}</td><td class="bomff-col-actions"><button class="button button-small" data-action="duplicate" data-doc-id="${esc(doc.id)}">Duplicate</button> <button class="button button-small" data-action="edit" data-doc-id="${esc(doc.id)}">Edit</button> <button class="button button-small" data-action="delete" data-doc-id="${esc(doc.id)}">Delete</button></td></tr>`; }).join('');
     }
 
     async function loadCollection(pageToken = '') {
@@ -226,6 +226,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!fieldEditState) return;
         try { let value; const editor = $('bomff-field-input').querySelector('.bomff-array-editor'); if (editor) value = readArrayEditor(editor); else { const input = $('bomff-field-input').querySelector('.bomff-field-input'); value = input.dataset.type === 'date-string' ? input.value : parseValue(input.type === 'checkbox' ? input.checked : input.value, input.dataset.type); } const nextData = { ...fieldEditState.docData, [fieldEditState.field]: value }; await ajax('bomff_save_document', { collection: currentCollection, docId: fieldEditState.docId, data: JSON.stringify(nextData) }); closeModal('bomff-field-modal'); showMsg('Field saved.'); await loadCollection(currentPageToken); }
         catch (e) { modalError('bomff-field-error', e.message || 'Could not save field.'); }
+    }
+
+    async function duplicateDoc(docId) {
+        const newId = prompt(`Duplicate document “${docId}” as:`, `${docId}-copy`);
+        if (!newId || newId === docId) return;
+
+        try {
+            const doc = await getDoc(docId);
+            await ajax('bomff_save_document', {
+                collection: currentCollection,
+                docId: newId,
+                data: JSON.stringify(doc.data || {})
+            });
+            showMsg(`Document duplicated as “${newId}”.`);
+            await loadCollection(currentPageToken);
+        } catch (e) {
+            showMsg(e.message || 'Could not duplicate document.', false);
+        }
     }
 
     async function deleteDoc(docId) { if (!confirm(`Delete document “${docId}”?`)) return; try { await ajax('bomff_delete_document', { collection: currentCollection, docId }); showMsg('Document deleted.'); await loadCollection(currentPageToken); } catch (e) { showMsg(e.message || 'Could not delete document.', false); } }
@@ -305,7 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
         els.next?.addEventListener('click', () => { if (nextPageToken) { pageStack.push(currentPageToken || ''); loadCollection(nextPageToken); } });
         els.prev?.addEventListener('click', () => loadCollection(pageStack.pop() || ''));
         els.loadDoc?.addEventListener('click', async () => { try { const docId = els.docId.value.trim(); const collection = els.collection.value.trim(); if (!docId || !collection) return showMsg('Enter collection and document ID.', false); const doc = (await ajax('bomff_get_document', { collection, docId })).document; currentCollection = collection; renderTable([doc]); showMsg('Loaded 1 document.'); } catch (e) { showMsg(e.message || 'Could not load document.', false); } });
-        els.body?.addEventListener('click', (event) => { const btn = event.target.closest('button[data-action]'); if (!btn) return; if (btn.dataset.action === 'view') openDocModal(btn.dataset.docId, true); if (btn.dataset.action === 'edit') openDocModal(btn.dataset.docId, false); if (btn.dataset.action === 'delete') deleteDoc(btn.dataset.docId); });
+        els.body?.addEventListener('click', (event) => { const btn = event.target.closest('button[data-action]'); if (!btn) return; if (btn.dataset.action === 'duplicate') duplicateDoc(btn.dataset.docId); if (btn.dataset.action === 'edit') openDocModal(btn.dataset.docId, false); if (btn.dataset.action === 'delete') deleteDoc(btn.dataset.docId); });
         els.body?.addEventListener('dblclick', (event) => { const cell = event.target.closest('.bomff-editable-cell'); if (cell) openFieldModal(cell.dataset.docId, cell.dataset.field); });
         els.importStructure?.addEventListener('click', importStructure);
         els.viewStructure?.addEventListener('click', viewStructure);
