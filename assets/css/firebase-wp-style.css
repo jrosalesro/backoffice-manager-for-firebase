@@ -258,67 +258,15 @@
 .bomff-quick-cell{
   cursor: cell;
 }
-.bomff-quick-cell:hover{
-  background:#f6f7f7;
-  outline:1px dashed #8c8f94;
-  outline-offset:-2px;
-}
-.bomff-modal__panel--small{
-  width:min(640px, 92vw);
-  height:auto;
-  max-height:86vh;
-}
-.bomff-field-actions{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  align-items:center;
-  margin-bottom:12px;
-}
-.bomff-inline-number{
-  width:110px !important;
+
+/* Runtime editor modal overrides */
+.bomff-runtime-panel{
+  max-width: 820px !important;
 }
 
-
-.bomff-array-item{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  margin:6px 0;
-}
-.bomff-array-value{
-  flex:1;
-  min-width:0;
-}
-.bomff-config-warning p{
-  display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  gap:8px;
-}
-
-.bomff-edit-fields{
-  display:grid;
-  gap:12px;
-  margin-bottom:12px;
-}
-.bomff-edit-field-row{
-  padding:10px;
-  border:1px solid #dcdcde;
-  border-radius:6px;
-  background:#fff;
-}
-.bomff-edit-field-row label{
-  display:block;
-  margin-bottom:6px;
-  font-weight:600;
-}
-.bomff-edit-field-row .regular-text,
-.bomff-edit-field-row select,
-.bomff-edit-field-row textarea{
-  width:100%;
-  max-width:100%;
-}
-.bomff-inline-msg{
-  margin-left:8px;
+.bomff-edit-fields-grid{
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  margin-bottom: 18px !important;
 }
