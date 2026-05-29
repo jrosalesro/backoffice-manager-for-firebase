@@ -2,7 +2,7 @@
 /*
 Plugin Name: BackOffice Manager for Firebase
 Description: Manage Firebase Firestore collections and documents from your WordPress admin area.
-Version: 0.2.0
+Version: 0.3.0
 Author: José Rosales Rosendo
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
