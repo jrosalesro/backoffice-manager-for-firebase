@@ -9,7 +9,7 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
 
 $service_account = bomff_get_service_account();
 $active_tab      = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'connection';
-$allowed_tabs    = array( 'connection', 'permissions', 'integrations', 'advanced' );
+$allowed_tabs    = array( 'connection', 'permissions' );
 
 if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
     $active_tab = 'connection';
@@ -47,14 +47,6 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
 
         <a href="<?php echo esc_url( add_query_arg( 'tab', 'permissions', $base_url ) ); ?>" class="nav-tab <?php echo 'permissions' === $active_tab ? 'nav-tab-active' : ''; ?>">
             <?php esc_html_e( 'Permissions', 'backoffice-manager-for-firebase' ); ?>
-        </a>
-
-        <a href="<?php echo esc_url( add_query_arg( 'tab', 'integrations', $base_url ) ); ?>" class="nav-tab <?php echo 'integrations' === $active_tab ? 'nav-tab-active' : ''; ?>">
-            <?php esc_html_e( 'Integrations', 'backoffice-manager-for-firebase' ); ?>
-        </a>
-
-        <a href="<?php echo esc_url( add_query_arg( 'tab', 'advanced', $base_url ) ); ?>" class="nav-tab <?php echo 'advanced' === $active_tab ? 'nav-tab-active' : ''; ?>">
-            <?php esc_html_e( 'Advanced', 'backoffice-manager-for-firebase' ); ?>
         </a>
     </nav>
 
@@ -99,7 +91,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
                                 required
                             />
                             <p class="description">
-                                <?php esc_html_e( 'Keep this file private. After uploading it here, you can safely delete the local copy from your computer.', 'backoffice-manager-for-firebase' ); ?>
+                                <?php esc_html_e( 'Keep this file private. The credentials are stored encrypted in WordPress after upload.', 'backoffice-manager-for-firebase' ); ?>
                             </p>
                         </td>
                     </tr>
@@ -161,7 +153,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
             <h2><?php esc_html_e( 'Permissions', 'backoffice-manager-for-firebase' ); ?></h2>
 
             <p>
-                <?php esc_html_e( 'In this version, only WordPress administrators can access and modify Firestore data.', 'backoffice-manager-for-firebase' ); ?>
+                <?php esc_html_e( 'Only WordPress administrators can access and modify Firestore data in this version.', 'backoffice-manager-for-firebase' ); ?>
             </p>
 
             <table class="widefat striped">
@@ -177,56 +169,6 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
                     <tr>
                         <td><strong><?php esc_html_e( 'Protection', 'backoffice-manager-for-firebase' ); ?></strong></td>
                         <td><?php esc_html_e( 'WordPress capability checks and nonces are applied to admin actions.', 'backoffice-manager-for-firebase' ); ?></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-        <div class="bomff-section bomff-mt-20">
-            <h2><?php esc_html_e( 'Role-based access', 'backoffice-manager-for-firebase' ); ?></h2>
-            <p><?php esc_html_e( 'Granular permissions by role, collection, and action are planned for a future version.', 'backoffice-manager-for-firebase' ); ?></p>
-        </div>
-
-    <?php elseif ( 'integrations' === $active_tab ) : ?>
-
-        <div class="bomff-section bomff-mt-20">
-            <h2><?php esc_html_e( 'Integrations', 'backoffice-manager-for-firebase' ); ?></h2>
-            <p><?php esc_html_e( 'This section is prepared for future integrations with other WordPress tools and external services.', 'backoffice-manager-for-firebase' ); ?></p>
-
-            <table class="widefat striped">
-                <tbody>
-                    <tr>
-                        <td><strong><?php esc_html_e( 'WooCommerce', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                        <td><?php esc_html_e( 'Not configured.', 'backoffice-manager-for-firebase' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong><?php esc_html_e( 'Forms / automation tools', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                        <td><?php esc_html_e( 'Coming later.', 'backoffice-manager-for-firebase' ); ?></td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
-    <?php elseif ( 'advanced' === $active_tab ) : ?>
-
-        <div class="bomff-section bomff-mt-20">
-            <h2><?php esc_html_e( 'Advanced settings', 'backoffice-manager-for-firebase' ); ?></h2>
-
-            <p><?php esc_html_e( 'Advanced production controls will be available in a future version.', 'backoffice-manager-for-firebase' ); ?></p>
-
-            <table class="widefat striped">
-                <tbody>
-                    <tr>
-                        <td><strong><?php esc_html_e( 'External key file', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                        <td><?php esc_html_e( 'Planned for advanced/professional setups.', 'backoffice-manager-for-firebase' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong><?php esc_html_e( 'Audit logs', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                        <td><?php esc_html_e( 'Planned.', 'backoffice-manager-for-firebase' ); ?></td>
-                    </tr>
-                    <tr>
-                        <td><strong><?php esc_html_e( 'Read-only mode', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                        <td><?php esc_html_e( 'Planned.', 'backoffice-manager-for-firebase' ); ?></td>
                     </tr>
                 </tbody>
             </table>
