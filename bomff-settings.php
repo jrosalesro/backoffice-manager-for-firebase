@@ -34,6 +34,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
         </div>
     <?php endif; ?>
 
+
     <?php if ( isset( $_GET['bomff_error'] ) ) : ?>
         <div class="notice notice-error">
             <p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['bomff_error'] ) ) ); ?></p>
@@ -150,6 +151,19 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
                     </p>
                 </div>
             <?php endif; ?>
+        </div>
+
+        <div class="bomff-section bomff-mt-20">
+            <h2><?php esc_html_e( 'Onboarding', 'backoffice-manager-for-firebase' ); ?></h2>
+            <p>
+                <?php esc_html_e( 'Reopen the welcome screen to choose between connecting Firebase and exploring Demo Mode again.', 'backoffice-manager-for-firebase' ); ?>
+            </p>
+
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+                <?php wp_nonce_field( 'bomff_show_onboarding' ); ?>
+                <input type="hidden" name="action" value="bomff_show_onboarding" />
+                <?php submit_button( __( 'Show Welcome Screen Again', 'backoffice-manager-for-firebase' ), 'secondary', 'submit', false ); ?>
+            </form>
         </div>
 
     <?php elseif ( 'permissions' === $active_tab ) : ?>

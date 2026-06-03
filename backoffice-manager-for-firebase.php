@@ -42,6 +42,139 @@ function bomff_is_demo_mode_request() {
     return '1' === $demo || 'true' === $demo;
 }
 
+
+function bomff_is_onboarding_completed() {
+    return '1' === get_option( 'bomff_onboarding_completed', '0' );
+}
+
+function bomff_is_welcome_screen_requested() {
+    $requested = isset( $_GET['bomff_show_welcome'] ) ? sanitize_text_field( wp_unslash( $_GET['bomff_show_welcome'] ) ) : '';
+    $nonce     = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+
+    return '1' === $requested && wp_verify_nonce( $nonce, 'bomff_show_welcome' );
+}
+
+function bomff_should_show_welcome_screen() {
+    if ( bomff_is_demo_mode_context() ) {
+        return false;
+    }
+
+    if ( bomff_is_welcome_screen_requested() ) {
+        return true;
+    }
+
+    if ( bomff_get_service_account() ) {
+        return false;
+    }
+
+    return ! bomff_is_onboarding_completed();
+}
+
+function bomff_render_welcome_screen() {
+    $connect_url = wp_nonce_url(
+        add_query_arg(
+            array(
+                'action'       => 'bomff_complete_onboarding',
+                'bomff_choice' => 'connect',
+            ),
+            admin_url( 'admin-post.php' )
+        ),
+        'bomff_complete_onboarding'
+    );
+
+    $demo_url = wp_nonce_url(
+        add_query_arg(
+            array(
+                'action'       => 'bomff_complete_onboarding',
+                'bomff_choice' => 'demo',
+            ),
+            admin_url( 'admin-post.php' )
+        ),
+        'bomff_complete_onboarding'
+    );
+    ?>
+    <div class="wrap bomff-wrap bomff-welcome-wrap">
+        <div class="bomff-welcome-hero">
+            <p class="bomff-welcome-kicker"><?php esc_html_e( 'Getting Started', 'backoffice-manager-for-firebase' ); ?></p>
+            <h1><?php esc_html_e( 'Welcome to Firebase BackOffice', 'backoffice-manager-for-firebase' ); ?></h1>
+            <p class="bomff-welcome-description">
+                <?php esc_html_e( 'Manage your Firebase data directly from WordPress.', 'backoffice-manager-for-firebase' ); ?>
+            </p>
+        </div>
+
+        <div class="bomff-welcome-options" aria-label="<?php echo esc_attr__( 'Getting started options', 'backoffice-manager-for-firebase' ); ?>">
+            <div class="bomff-welcome-card">
+                <div class="bomff-welcome-icon" aria-hidden="true">🚀</div>
+                <h2><?php esc_html_e( 'Connect Firebase', 'backoffice-manager-for-firebase' ); ?></h2>
+                <p><?php esc_html_e( 'Configure a real Firebase project and start managing your Firestore data.', 'backoffice-manager-for-firebase' ); ?></p>
+                <a class="button button-primary button-hero" href="<?php echo esc_url( $connect_url ); ?>">
+                    <?php esc_html_e( 'Connect Firebase', 'backoffice-manager-for-firebase' ); ?>
+                </a>
+            </div>
+
+            <div class="bomff-welcome-card">
+                <div class="bomff-welcome-icon" aria-hidden="true">🧪</div>
+                <h2><?php esc_html_e( 'Explore Demo Mode', 'backoffice-manager-for-firebase' ); ?></h2>
+                <p><?php esc_html_e( 'Try the plugin using realistic sample data. No Firebase account or credentials required.', 'backoffice-manager-for-firebase' ); ?></p>
+                <a class="button button-secondary button-hero" href="<?php echo esc_url( $demo_url ); ?>">
+                    <?php esc_html_e( 'Start Demo Mode', 'backoffice-manager-for-firebase' ); ?>
+                </a>
+            </div>
+        </div>
+
+        <p class="bomff-welcome-note">
+            <?php esc_html_e( 'You can switch between Demo Mode and a real Firebase project at any time.', 'backoffice-manager-for-firebase' ); ?>
+        </p>
+    </div>
+    <?php
+}
+
+function bomff_handle_complete_onboarding() {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
+        wp_die( esc_html__( 'Unauthorized.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    check_admin_referer( 'bomff_complete_onboarding' );
+
+    $choice = isset( $_GET['bomff_choice'] ) ? sanitize_key( wp_unslash( $_GET['bomff_choice'] ) ) : 'connect';
+
+    update_option( 'bomff_onboarding_completed', '1', false );
+
+    if ( 'demo' === $choice ) {
+        wp_safe_redirect( admin_url( 'admin.php?page=bomff-demo' ) );
+        exit;
+    }
+
+    wp_safe_redirect( admin_url( 'admin.php?page=bomff-settings' ) );
+    exit;
+}
+add_action( 'admin_post_bomff_complete_onboarding', 'bomff_handle_complete_onboarding' );
+
+function bomff_handle_show_onboarding() {
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
+        wp_die( esc_html__( 'Unauthorized.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    check_admin_referer( 'bomff_show_onboarding' );
+
+    delete_option( 'bomff_onboarding_completed' );
+
+    $welcome_url = wp_nonce_url(
+        add_query_arg(
+            array(
+                'page'               => 'bomff-admin-panel',
+                'bomff_show_welcome' => '1',
+            ),
+            admin_url( 'admin.php' )
+        ),
+        'bomff_show_welcome'
+    );
+
+    wp_safe_redirect( $welcome_url );
+    exit;
+}
+add_action( 'admin_post_bomff_show_onboarding', 'bomff_handle_show_onboarding' );
+
 function bomff_add_admin_menu() {
     add_menu_page(
         __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
@@ -85,6 +218,11 @@ add_action( 'admin_menu', 'bomff_add_admin_menu' );
 function bomff_render_firestore_page() {
     if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
         wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    if ( bomff_should_show_welcome_screen() ) {
+        bomff_render_welcome_screen();
+        return;
     }
 
     include BOMFF_PLUGIN_PATH . 'pages/firestore.php';
