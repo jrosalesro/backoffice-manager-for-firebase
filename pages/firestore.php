@@ -6,18 +6,32 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     wp_die( esc_html__( 'You do not have permission.', 'backoffice-manager-for-firebase' ) );
 }
+
+$demo_mode = bomff_is_demo_mode_context();
 ?>
 
 <div class="wrap bomff-wrap">
-  <h1><?php esc_html_e( 'Firestore', 'backoffice-manager-for-firebase' ); ?></h1>
+  <h1><?php echo esc_html( $demo_mode ? __( 'Firestore Demo Mode', 'backoffice-manager-for-firebase' ) : __( 'Firestore', 'backoffice-manager-for-firebase' ) ); ?></h1>
 
   <div id="firebase-admin-panel-app">
+
+    <?php if ( $demo_mode ) : ?>
+      <div class="notice notice-info bomff-demo-banner">
+        <p>
+          <strong><?php esc_html_e( 'Demo Mode: no real Firebase project is connected.', 'backoffice-manager-for-firebase' ); ?></strong>
+          <?php esc_html_e( 'Explore mock Firestore-like data safely. Demo edits and deletes stay in this WordPress user account and never touch Firebase.', 'backoffice-manager-for-firebase' ); ?>
+        </p>
+      </div>
+    <?php endif; ?>
 
     <div id="bomff-config-warning" class="notice notice-warning bomff-hidden">
       <p>
         <?php esc_html_e( 'Firebase is not configured yet.', 'backoffice-manager-for-firebase' ); ?>
         <a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=bomff-settings' ) ); ?>">
           <?php esc_html_e( 'Open Settings', 'backoffice-manager-for-firebase' ); ?>
+        </a>
+        <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=bomff-demo' ) ); ?>">
+          <?php esc_html_e( 'Try Demo Mode', 'backoffice-manager-for-firebase' ); ?>
         </a>
       </p>
     </div>
@@ -63,11 +77,20 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     <div class="bomff-section bomff-mt-20">
       <h2><?php esc_html_e( 'Explore a collection', 'backoffice-manager-for-firebase' ); ?></h2>
 
+      <?php if ( $demo_mode ) : ?>
+        <div class="bomff-demo-collections" aria-label="<?php echo esc_attr__( 'Demo collections', 'backoffice-manager-for-firebase' ); ?>">
+          <span><?php esc_html_e( 'Demo collections:', 'backoffice-manager-for-firebase' ); ?></span>
+          <button class="button bomff-demo-collection" type="button" data-collection="users"><?php esc_html_e( 'users', 'backoffice-manager-for-firebase' ); ?></button>
+          <button class="button bomff-demo-collection" type="button" data-collection="orders"><?php esc_html_e( 'orders', 'backoffice-manager-for-firebase' ); ?></button>
+          <button class="button bomff-demo-collection" type="button" data-collection="products"><?php esc_html_e( 'products', 'backoffice-manager-for-firebase' ); ?></button>
+        </div>
+      <?php endif; ?>
+
       <div class="bomff-controls">
         <input
           type="text"
           id="bomff-collection-name"
-          placeholder="<?php echo esc_attr__( 'e.g. affiliates', 'backoffice-manager-for-firebase' ); ?>"
+          placeholder="<?php echo esc_attr( $demo_mode ? __( 'e.g. users', 'backoffice-manager-for-firebase' ) : __( 'e.g. affiliates', 'backoffice-manager-for-firebase' ) ); ?>"
         />
 
         <select id="bomff-page-size">

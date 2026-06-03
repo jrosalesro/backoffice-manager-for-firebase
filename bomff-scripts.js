@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         createDoc: $('bomff-create-doc'),
         deleteStructure: $('bomff-delete-structure'),
         structureMsg: $('bomff-structure-msg'),
+        demoCollections: document.querySelectorAll('.bomff-demo-collection'),
     };
 
     let currentCollection = '';
@@ -82,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const fd = new FormData();
         fd.append('action', action);
         fd.append('nonce', cfg.nonce || '');
+        if (cfg.demoMode) fd.append('demoMode', '1');
         Object.entries(payload).forEach(([key, value]) => fd.append(key, value ?? ''));
         const res = await fetch(cfg.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: fd });
         const json = await res.json().catch(() => null);
@@ -199,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const collection = (els.collection?.value || '').trim();
         if (!collection) return showMsg('Enter a collection name.', false);
         currentCollection = collection; currentPageToken = pageToken || '';
-        try { showMsg(`Loading “${collection}”…`); const data = await ajax('bomff_list_documents', { collection, pageSize: els.pageSize?.value || 25, pageToken: currentPageToken }); nextPageToken = data.nextPageToken || ''; renderTable(data.documents || []); if (els.prev) els.prev.disabled = pageStack.length === 0; if (els.next) els.next.disabled = !nextPageToken; localStorage.setItem('bomff_last_collection', collection); showMsg(`Loaded ${(data.documents || []).length} document(s).`); }
+        try { showMsg(`Loading “${collection}”…`); const data = await ajax('bomff_list_documents', { collection, pageSize: els.pageSize?.value || 25, pageToken: currentPageToken }); nextPageToken = data.nextPageToken || ''; renderTable(data.documents || []); if (els.prev) els.prev.disabled = pageStack.length === 0; if (els.next) els.next.disabled = !nextPageToken; localStorage.setItem(cfg.demoMode ? 'bomff_last_demo_collection' : 'bomff_last_collection', collection); showMsg(cfg.demoMode ? `Loaded ${(data.documents || []).length} demo document(s).` : `Loaded ${(data.documents || []).length} document(s).`); }
         catch (e) { console.error(e); showMsg(e.message || 'Could not load documents.', false); }
     }
 
@@ -318,6 +320,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function bindEvents() {
         installStylesAndModals();
         els.load?.addEventListener('click', () => { pageStack = []; loadCollection(''); });
+        els.demoCollections?.forEach((btn) => btn.addEventListener('click', () => { if (els.collection) els.collection.value = btn.dataset.collection || ''; pageStack = []; loadCollection(''); }));
         els.clear?.addEventListener('click', () => { if (els.body) els.body.innerHTML = '<tr><td colspan="3" class="bomff-center-muted">Enter a collection and click “Load”.</td></tr>'; showMsg(''); });
         els.collection?.addEventListener('keydown', (event) => { if (event.key === 'Enter') { pageStack = []; loadCollection(''); } });
         els.next?.addEventListener('click', () => { if (nextPageToken) { pageStack.push(currentPageToken || ''); loadCollection(nextPageToken); } });
@@ -336,9 +339,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!els.collection) return;
         bindEvents();
         enableUI(false);
-        const saved = localStorage.getItem('bomff_last_collection');
+        const storageKey = cfg.demoMode ? 'bomff_last_demo_collection' : 'bomff_last_collection';
+        const saved = localStorage.getItem(storageKey);
         if (saved) els.collection.value = saved;
-        try { const status = await ajax('bomff_get_status', {}); if (!status.configured) { els.warning?.classList.remove('bomff-hidden'); return; } els.warning?.classList.add('bomff-hidden'); enableUI(true); await loadStructure(); if (saved && !didAutoload) { didAutoload = true; await loadCollection(''); } }
+        if (cfg.demoMode && !els.collection.value) els.collection.value = 'users';
+        try { const status = await ajax('bomff_get_status', {}); if (!status.configured) { els.warning?.classList.remove('bomff-hidden'); return; } els.warning?.classList.add('bomff-hidden'); enableUI(true); await loadStructure(); if (els.collection.value && !didAutoload) { didAutoload = true; await loadCollection(''); } }
         catch (e) { console.error(e); els.warning?.classList.remove('bomff-hidden'); }
     }
 

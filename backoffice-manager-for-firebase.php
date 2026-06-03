@@ -25,6 +25,23 @@ if ( ! defined( 'BOMFF_CAPABILITY' ) ) {
     define( 'BOMFF_CAPABILITY', 'manage_options' );
 }
 
+
+function bomff_is_demo_mode_context() {
+    $page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+
+    if ( 'bomff-demo' === $page ) {
+        return true;
+    }
+
+    $demo = isset( $_GET['bomff_demo'] ) ? sanitize_text_field( wp_unslash( $_GET['bomff_demo'] ) ) : '';
+    return '1' === $demo;
+}
+
+function bomff_is_demo_mode_request() {
+    $demo = isset( $_POST['demoMode'] ) ? sanitize_text_field( wp_unslash( $_POST['demoMode'] ) ) : '';
+    return '1' === $demo || 'true' === $demo;
+}
+
 function bomff_add_admin_menu() {
     add_menu_page(
         __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
@@ -42,6 +59,15 @@ function bomff_add_admin_menu() {
         __( 'Firestore', 'backoffice-manager-for-firebase' ),
         BOMFF_CAPABILITY,
         'bomff-admin-panel',
+        'bomff_render_firestore_page'
+    );
+
+    add_submenu_page(
+        'bomff-admin-panel',
+        __( 'Demo Mode', 'backoffice-manager-for-firebase' ),
+        __( 'Demo Mode', 'backoffice-manager-for-firebase' ),
+        BOMFF_CAPABILITY,
+        'bomff-demo',
         'bomff_render_firestore_page'
     );
 
@@ -75,7 +101,7 @@ function bomff_render_settings_page() {
 function bomff_enqueue_admin_scripts( $hook ) {
     $page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 
-    if ( ! in_array( $page, array( 'bomff-admin-panel', 'bomff-settings' ), true ) ) {
+    if ( ! in_array( $page, array( 'bomff-admin-panel', 'bomff-demo', 'bomff-settings' ), true ) ) {
         return;
     }
 
@@ -101,6 +127,7 @@ function bomff_enqueue_admin_scripts( $hook ) {
     );
 
     $service_account = bomff_get_service_account();
+    $demo_mode       = bomff_is_demo_mode_context();
 
     wp_localize_script(
         'bomff-admin-js',
@@ -108,9 +135,11 @@ function bomff_enqueue_admin_scripts( $hook ) {
         array(
             'ajaxUrl'     => admin_url( 'admin-ajax.php' ),
             'settingsUrl' => admin_url( 'admin.php?page=bomff-settings' ),
+            'demoUrl'     => admin_url( 'admin.php?page=bomff-demo' ),
             'nonce'       => wp_create_nonce( 'bomff_ajax' ),
             'isPro'       => (bool) apply_filters( 'bomff_is_pro', false ),
             'configured'  => (bool) $service_account,
+            'demoMode'    => (bool) $demo_mode,
             'projectId'   => is_array( $service_account ) && ! empty( $service_account['project_id'] ) ? $service_account['project_id'] : '',
         )
     );
@@ -528,9 +557,258 @@ function bomff_php_to_firestore_document( $data ) {
     return array( 'fields' => $fields );
 }
 
-function bomff_get_active_structure() {
-    $opt = get_option( 'bomff_active_structure', array() );
+function bomff_demo_seed_data() {
+    $now = gmdate( 'c' );
+
+    return array(
+        'users'    => array(
+            'usr_1001' => array(
+                'name'       => 'Maya Chen',
+                'email'      => 'maya.chen@example.com',
+                'role'       => 'customer',
+                'status'     => 'active',
+                'createdAt'  => '2026-05-12',
+                'lastLogin'  => $now,
+                'orders'     => 3,
+                'newsletter' => true,
+                'address'    => array(
+                    'city'    => 'Austin',
+                    'region'  => 'TX',
+                    'country' => 'US',
+                ),
+            ),
+            'usr_1002' => array(
+                'name'       => 'Daniel Rivera',
+                'email'      => 'daniel.rivera@example.com',
+                'role'       => 'manager',
+                'status'     => 'active',
+                'createdAt'  => '2026-04-03',
+                'lastLogin'  => '2026-06-01T16:42:00Z',
+                'orders'     => 8,
+                'newsletter' => false,
+                'address'    => array(
+                    'city'    => 'Denver',
+                    'region'  => 'CO',
+                    'country' => 'US',
+                ),
+            ),
+            'usr_1003' => array(
+                'name'       => 'Olivia Thompson',
+                'email'      => 'olivia.thompson@example.com',
+                'role'       => 'customer',
+                'status'     => 'pending',
+                'createdAt'  => '2026-05-28',
+                'lastLogin'  => null,
+                'orders'     => 0,
+                'newsletter' => true,
+                'address'    => array(
+                    'city'    => 'Portland',
+                    'region'  => 'OR',
+                    'country' => 'US',
+                ),
+            ),
+        ),
+        'orders'   => array(
+            'ord_9001' => array(
+                'userId'      => 'usr_1001',
+                'customer'    => 'Maya Chen',
+                'status'      => 'paid',
+                'total'       => 149.98,
+                'currency'    => 'USD',
+                'createdAt'   => '2026-05-29T14:10:00Z',
+                'items'       => array( 'prod_2001', 'prod_2003' ),
+                'shipping'    => array(
+                    'method' => 'UPS Ground',
+                    'city'   => 'Austin',
+                ),
+            ),
+            'ord_9002' => array(
+                'userId'      => 'usr_1002',
+                'customer'    => 'Daniel Rivera',
+                'status'      => 'fulfilled',
+                'total'       => 79.99,
+                'currency'    => 'USD',
+                'createdAt'   => '2026-05-21T09:35:00Z',
+                'items'       => array( 'prod_2002' ),
+                'shipping'    => array(
+                    'method' => 'USPS Priority',
+                    'city'   => 'Denver',
+                ),
+            ),
+            'ord_9003' => array(
+                'userId'      => 'usr_1001',
+                'customer'    => 'Maya Chen',
+                'status'      => 'processing',
+                'total'       => 249.5,
+                'currency'    => 'USD',
+                'createdAt'   => '2026-06-02T18:22:00Z',
+                'items'       => array( 'prod_2004', 'prod_2005' ),
+                'shipping'    => array(
+                    'method' => 'FedEx 2Day',
+                    'city'   => 'Austin',
+                ),
+            ),
+        ),
+        'products' => array(
+            'prod_2001' => array(
+                'name'        => 'Ergonomic Keyboard',
+                'sku'         => 'KEY-ERG-001',
+                'price'       => 89.99,
+                'inventory'   => 42,
+                'active'      => true,
+                'category'    => 'Accessories',
+                'tags'        => array( 'office', 'productivity', 'hardware' ),
+                'updatedAt'   => '2026-05-30T12:00:00Z',
+            ),
+            'prod_2002' => array(
+                'name'        => 'USB-C Docking Station',
+                'sku'         => 'DOCK-USBC-009',
+                'price'       => 79.99,
+                'inventory'   => 18,
+                'active'      => true,
+                'category'    => 'Accessories',
+                'tags'        => array( 'usb-c', 'desk', 'hardware' ),
+                'updatedAt'   => '2026-05-22T08:15:00Z',
+            ),
+            'prod_2003' => array(
+                'name'        => 'Desk Cable Tray',
+                'sku'         => 'DSK-CBL-014',
+                'price'       => 59.99,
+                'inventory'   => 64,
+                'active'      => true,
+                'category'    => 'Office',
+                'tags'        => array( 'desk', 'organization' ),
+                'updatedAt'   => '2026-05-26T10:45:00Z',
+            ),
+            'prod_2004' => array(
+                'name'        => 'Adjustable Laptop Stand',
+                'sku'         => 'STAND-LAP-022',
+                'price'       => 119.5,
+                'inventory'   => 27,
+                'active'      => true,
+                'category'    => 'Office',
+                'tags'        => array( 'ergonomic', 'desk' ),
+                'updatedAt'   => '2026-06-01T15:30:00Z',
+            ),
+            'prod_2005' => array(
+                'name'        => 'Noise Cancelling Headset',
+                'sku'         => 'HEAD-NC-031',
+                'price'       => 130,
+                'inventory'   => 11,
+                'active'      => false,
+                'category'    => 'Audio',
+                'tags'        => array( 'remote-work', 'audio' ),
+                'updatedAt'   => '2026-05-18T11:05:00Z',
+            ),
+        ),
+    );
+}
+
+function bomff_get_demo_data() {
+    $data = get_user_meta( get_current_user_id(), 'bomff_demo_firestore_data', true );
+
+    if ( ! is_array( $data ) || empty( $data ) ) {
+        $data = bomff_demo_seed_data();
+        update_user_meta( get_current_user_id(), 'bomff_demo_firestore_data', $data );
+    }
+
+    return $data;
+}
+
+function bomff_update_demo_data( $data ) {
+    update_user_meta( get_current_user_id(), 'bomff_demo_firestore_data', is_array( $data ) ? $data : bomff_demo_seed_data() );
+}
+
+function bomff_demo_document_to_php( $doc_id, $data ) {
+    return array(
+        'id'         => $doc_id,
+        'data'       => is_array( $data ) ? $data : array(),
+        'createTime' => '',
+        'updateTime' => gmdate( 'c' ),
+    );
+}
+
+function bomff_demo_list_documents( $collection, $page_size, $page_token ) {
+    $data = bomff_get_demo_data();
+
+    if ( ! isset( $data[ $collection ] ) || ! is_array( $data[ $collection ] ) ) {
+        return array( 'documents' => array(), 'nextPageToken' => '' );
+    }
+
+    $docs   = $data[ $collection ];
+    $ids    = array_keys( $docs );
+    sort( $ids, SORT_NATURAL );
+    $offset = '' !== $page_token ? max( 0, intval( $page_token ) ) : 0;
+    $slice  = array_slice( $ids, $offset, $page_size );
+
+    $documents = array();
+    foreach ( $slice as $doc_id ) {
+        $documents[] = bomff_demo_document_to_php( $doc_id, $docs[ $doc_id ] );
+    }
+
+    $next_offset = $offset + count( $slice );
+
+    return array(
+        'documents'     => $documents,
+        'nextPageToken' => $next_offset < count( $ids ) ? (string) $next_offset : '',
+    );
+}
+
+function bomff_demo_get_document( $collection, $doc_id ) {
+    $data = bomff_get_demo_data();
+
+    if ( ! isset( $data[ $collection ][ $doc_id ] ) || ! is_array( $data[ $collection ][ $doc_id ] ) ) {
+        return new WP_Error( 'demo_not_found', __( 'Demo document not found.', 'backoffice-manager-for-firebase' ) );
+    }
+
+    return bomff_demo_document_to_php( $doc_id, $data[ $collection ][ $doc_id ] );
+}
+
+function bomff_demo_save_document( $collection, $doc_id, $doc_data ) {
+    $data = bomff_get_demo_data();
+
+    if ( ! isset( $data[ $collection ] ) || ! is_array( $data[ $collection ] ) ) {
+        $data[ $collection ] = array();
+    }
+
+    $data[ $collection ][ $doc_id ] = $doc_data;
+    bomff_update_demo_data( $data );
+
+    return bomff_demo_document_to_php( $doc_id, $doc_data );
+}
+
+function bomff_demo_delete_document( $collection, $doc_id ) {
+    $data = bomff_get_demo_data();
+
+    if ( isset( $data[ $collection ][ $doc_id ] ) ) {
+        unset( $data[ $collection ][ $doc_id ] );
+        bomff_update_demo_data( $data );
+    }
+
+    return true;
+}
+
+function bomff_get_active_structure( $demo_mode = false ) {
+    $opt = $demo_mode ? get_user_meta( get_current_user_id(), 'bomff_demo_active_structure', true ) : get_option( 'bomff_active_structure', array() );
     return is_array( $opt ) ? $opt : array();
+}
+
+function bomff_update_active_structure( $structure, $demo_mode = false ) {
+    if ( $demo_mode ) {
+        update_user_meta( get_current_user_id(), 'bomff_demo_active_structure', $structure );
+        return;
+    }
+
+    update_option( 'bomff_active_structure', $structure, false );
+}
+
+function bomff_delete_active_structure( $demo_mode = false ) {
+    if ( $demo_mode ) {
+        delete_user_meta( get_current_user_id(), 'bomff_demo_active_structure' );
+        return;
+    }
+
+    delete_option( 'bomff_active_structure' );
 }
 
 function bomff_ajax_require_admin() {
@@ -547,14 +825,27 @@ function bomff_ajax_require_admin() {
 function bomff_ajax_get_status() {
     bomff_ajax_require_admin();
 
+    if ( bomff_is_demo_mode_request() ) {
+        wp_send_json_success(
+            array(
+                'configured'  => true,
+                'demoMode'    => true,
+                'projectId'   => 'demo-project',
+                'clientEmail' => '',
+                'message'     => __( 'Demo Mode: no real Firebase project is connected.', 'backoffice-manager-for-firebase' ),
+            )
+        );
+    }
+
     $service_account = bomff_get_service_account();
     if ( ! $service_account ) {
-        wp_send_json_success( array( 'configured' => false, 'projectId' => '', 'message' => __( 'Firebase Service Account is not configured.', 'backoffice-manager-for-firebase' ) ) );
+        wp_send_json_success( array( 'configured' => false, 'demoMode' => false, 'projectId' => '', 'message' => __( 'Firebase Service Account is not configured.', 'backoffice-manager-for-firebase' ) ) );
     }
 
     wp_send_json_success(
         array(
             'configured'  => true,
+            'demoMode'    => false,
             'projectId'   => $service_account['project_id'] ?? '',
             'clientEmail' => $service_account['client_email'] ?? '',
         )
@@ -571,6 +862,10 @@ function bomff_ajax_list_documents() {
 
     if ( empty( $collection ) ) {
         wp_send_json_error( array( 'message' => __( 'Empty collection.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    if ( bomff_is_demo_mode_request() ) {
+        wp_send_json_success( bomff_demo_list_documents( $collection, $page_size, $page_token ) );
     }
 
     $query = array( 'pageSize' => $page_size, 'orderBy' => '__name__' );
@@ -602,6 +897,15 @@ function bomff_ajax_get_document() {
         wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
     }
 
+    if ( bomff_is_demo_mode_request() ) {
+        $document = bomff_demo_get_document( $collection, $doc_id );
+        if ( is_wp_error( $document ) ) {
+            wp_send_json_error( array( 'message' => $document->get_error_message() ), 404 );
+        }
+
+        wp_send_json_success( array( 'document' => $document ) );
+    }
+
     $response = bomff_firestore_request( 'GET', $collection . '/' . $doc_id );
     if ( is_wp_error( $response ) ) {
         wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
@@ -625,6 +929,11 @@ function bomff_ajax_save_document() {
     $data = json_decode( $data_raw, true );
     if ( ! is_array( $data ) ) {
         wp_send_json_error( array( 'message' => __( 'Invalid JSON data.', 'backoffice-manager-for-firebase' ) ), 400 );
+    }
+
+    if ( bomff_is_demo_mode_request() ) {
+        $document = bomff_demo_save_document( $collection, $doc_id, $data );
+        wp_send_json_success( array( 'document' => $document, 'demoMode' => true ) );
     }
 
     $existing_response = bomff_firestore_request( 'GET', $collection . '/' . $doc_id );
@@ -657,6 +966,11 @@ function bomff_ajax_delete_document() {
         wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
     }
 
+    if ( bomff_is_demo_mode_request() ) {
+        bomff_demo_delete_document( $collection, $doc_id );
+        wp_send_json_success( array( 'deleted' => true, 'demoMode' => true ) );
+    }
+
     $response = bomff_firestore_request( 'DELETE', $collection . '/' . $doc_id );
     if ( is_wp_error( $response ) ) {
         wp_send_json_error( array( 'message' => $response->get_error_message() ), 400 );
@@ -669,7 +983,7 @@ add_action( 'wp_ajax_bomff_delete_document', 'bomff_ajax_delete_document' );
 
 function bomff_ajax_get_structure() {
     bomff_ajax_require_admin();
-    wp_send_json_success( array( 'structure' => bomff_get_active_structure() ) );
+    wp_send_json_success( array( 'structure' => bomff_get_active_structure( bomff_is_demo_mode_request() ) ) );
 }
 add_action( 'wp_ajax_bomff_get_structure', 'bomff_ajax_get_structure' );
 
@@ -714,7 +1028,7 @@ function bomff_ajax_save_structure() {
     }
 
     $structure = array( 'collection' => $collection, 'fields' => $clean_fields, 'updatedAt' => time() );
-    update_option( 'bomff_active_structure', $structure, false );
+    bomff_update_active_structure( $structure, bomff_is_demo_mode_request() );
 
     wp_send_json_success( array( 'structure' => $structure ) );
 }
@@ -722,7 +1036,7 @@ add_action( 'wp_ajax_bomff_save_structure', 'bomff_ajax_save_structure' );
 
 function bomff_ajax_delete_structure() {
     bomff_ajax_require_admin();
-    delete_option( 'bomff_active_structure' );
+    bomff_delete_active_structure( bomff_is_demo_mode_request() );
     wp_send_json_success( array( 'deleted' => true ) );
 }
 add_action( 'wp_ajax_bomff_delete_structure', 'bomff_ajax_delete_structure' );
