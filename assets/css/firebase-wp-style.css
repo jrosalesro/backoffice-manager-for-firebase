@@ -270,3 +270,21 @@
   gap: 14px !important;
   margin-bottom: 18px !important;
 }
+
+/* Demo Mode */
+.bomff-demo-banner{
+  border-left-color:#72aee6;
+}
+.bomff-demo-banner p{
+  font-size:14px;
+}
+.bomff-demo-collections{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin:10px 0 12px;
+}
+.bomff-demo-collections span{
+  font-weight:600;
+}

@@ -143,6 +143,11 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
             <?php else : ?>
                 <div class="notice notice-warning inline">
                     <p><?php esc_html_e( 'Firebase is not connected yet.', 'backoffice-manager-for-firebase' ); ?></p>
+                    <p>
+                        <a class="button button-primary" href="<?php echo esc_url( admin_url( 'admin.php?page=bomff-demo' ) ); ?>">
+                            <?php esc_html_e( 'Try Demo Mode', 'backoffice-manager-for-firebase' ); ?>
+                        </a>
+                    </p>
                 </div>
             <?php endif; ?>
         </div>
