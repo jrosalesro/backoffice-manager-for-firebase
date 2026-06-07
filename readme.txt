@@ -4,80 +4,110 @@ Tags: firebase, firestore, admin, backoffice, database
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.3.0
+Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Manage Firebase Firestore collections and documents directly from your WordPress admin.
+Manage Firebase Firestore directly from WordPress. Browse collections, edit documents, import structures and test everything with Demo Mode — no Firebase configuration required.
 
 == Description ==
 
-BackOffice Manager for Firebase  for WordPress allows you to manage data stored in Firebase Firestore directly from the WordPress admin area.
+BackOffice Manager for Firebase allows you to manage data stored in Firebase Firestore directly from your WordPress admin dashboard.
 
-This plugin is designed as a lightweight back office for Firestore, focused on browsing collections, inspecting documents, and performing basic CRUD operations without leaving WordPress.
+The plugin provides a lightweight Firestore administration interface focused on browsing collections, managing documents, and performing common CRUD operations without leaving WordPress.
 
-This is an early release (0.1.x), intended for developers, administrators, and technical users who already work with Firebase and want a simple way to manage Firestore data from WordPress.
+Designed for developers, administrators, and technical users working with Firebase projects, it offers a familiar WordPress experience for managing Firestore data.
 
-This plugin is an independent tool and is not affiliated with or endorsed by Google or the Firebase project.
+This plugin is an independent tool and is not affiliated with or endorsed by Google or Firebase.
 
 Features include:
+
 * Browse Firestore collections and documents.
 * View document data in a structured table format.
-* Import a document structure from an existing Firestore collection.
-* Create documents using a guided form generated from the imported structure.
-* Edit documents using direct JSON editing.
-* Delete documents from Firestore.
+* Inline editing of document fields directly from the table.
+* Create, edit, duplicate and delete Firestore documents.
+* Import document structures from existing collections.
+* Guided document creation using imported structures.
+* Demo Mode with sample collections and documents.
+* Per-user isolated demo data for safe testing.
+* Collection history for quick access.
+* JSON document editing for advanced users.
 
-Note: This plugin requires your own Firebase project and credentials. It does not create Firebase projects or modify Firebase billing settings.
+Note: This plugin requires your own Firebase project and credentials for production use. Demo Mode is available for evaluation without Firebase configuration.
 
 == Installation ==
 
 1. Upload the plugin folder to `/wp-content/plugins/` or install it through the WordPress Plugins screen.
 2. Activate the plugin through the 'Plugins' screen in WordPress.
-3. Go to "BackOffice Manager for Firebase " in the WordPress admin menu.
-4. Open "Settings" and add your Firebase Web App credentials.
+3. Open "BackOffice Manager for Firebase" from the WordPress admin menu.
+4. Configure your Firebase credentials under Settings or start with Demo Mode.
 
 == Frequently Asked Questions ==
 
 = Is this plugin production-ready? =
-This is an early version (0.1.x). It is functional but still evolving and may receive breaking changes in future releases.
+
+The plugin is actively maintained and suitable for development, testing and administration tasks. As Firestore projects vary greatly in structure, it is recommended to test thoroughly before using it in critical environments.
+
+= Can I try the plugin without Firebase? =
+
+Yes. Demo Mode allows you to explore the interface and test all major features without connecting to a Firebase project.
 
 = Does this plugin create Firestore collections automatically? =
-No. You can import the structure from an existing Firestore collection and create documents based on that structure.
+
+Currently, collections are created through normal Firestore operations. The plugin focuses on document management and structure-based document creation.
 
 = Do I need a Firebase account? =
-Yes. You need a Firebase project with Firestore enabled and a configured Web App.
+
+Only for production usage. Demo Mode works without Firebase.
 
 = Does it support Realtime Database? =
-Not in this version.
+
+Not currently. Firestore is the only supported Firebase database.
 
 == Screenshots ==
 
-1. BackOffice Manager for Firebase  dashboard showing connection status, authentication, and quick access to official Firebase usage and billing pages.
-2. Firebase settings screen where the Firebase Web App credentials are configured to connect WordPress with a Firebase project.
-3. Firestore collection explorer with document listing and full CRUD actions.
-4. Firestore document edit screen allowing direct JSON editing with save actions.
-5. Guided structure import from an existing Firestore collection, automatically detecting fields and data types.
-6. Assisted Firestore document creation using a guided form generated from an existing collection structure.
+1. Dashboard with Firebase connection status and quick access links.
+2. Firebase settings screen.
+3. Firestore collection explorer with CRUD operations.
+4. Inline editing directly from the document table.
+5. JSON document editor.
+6. Structure import from existing Firestore collections.
+7. Guided document creation form.
+8. Demo Mode with sample collections and documents.
 
 == Changelog ==
 
-= 0.2.0 =
-* Simplified admin menu: Firestore and Settings only.
-* Added configuration warning on Firestore screen.
-* Replaced View JSON row action with Duplicate document.
-* Improved quick array editing with add/remove item controls.
+= 0.4.0 =
+
+* Added Demo Mode for testing without Firebase credentials.
+* Added isolated per-user demo collections and documents.
+* Added dedicated Demo Mode admin screen.
+* Added guided onboarding for first-time users.
+* Added demo collection shortcuts.
+* Improved Firestore AJAX handling.
+* Improved user experience for unconfigured installations.
+
+= 0.3.0 =
+
+* Added document duplication.
+* Added collection structure import.
+* Added guided document creation.
+* Added collection history.
+* Various UI improvements.
 
 = 0.2.0 =
-* Stable alphabetical table columns.
-* Added quick field editing by double-clicking table cells.
-* Added field-specific actions for strings, numbers and booleans.
 
+* Added inline field editing.
+* Added stable column ordering.
+* Added field-specific actions.
+* Improved array editing controls.
 
 = 0.1.0 =
+
 * Initial public release.
 
 == Upgrade Notice ==
 
-= 0.1.0 =
-Initial public release.
+= 0.4.0 =
+
+Introduces Demo Mode and onboarding improvements, allowing users to evaluate the plugin before configuring Firebase.
