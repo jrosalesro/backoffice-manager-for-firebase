@@ -28,6 +28,34 @@ function bomff_auth_action_form( $action, $label, $user, $class = 'button-link' 
 }
 
 function bomff_auth_render_error_notice( $message, $error_data = array() ) {
+    $is_identity_toolkit_disabled = is_array( $error_data ) && ! empty( $error_data['identity_toolkit_api_disabled'] );
+    $project_id                   = is_array( $error_data ) && ! empty( $error_data['project_id'] ) ? (string) $error_data['project_id'] : '';
+    $enable_api_url               = 'https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com';
+
+    if ( '' !== $project_id ) {
+        $enable_api_url = add_query_arg( 'project', $project_id, $enable_api_url );
+    }
+
+    if ( $is_identity_toolkit_disabled ) :
+        ?>
+        <div class="notice notice-warning bomff-auth-warning-card">
+            <h2><?php esc_html_e( 'Identity Toolkit API needs to be enabled', 'backoffice-manager-for-firebase' ); ?></h2>
+            <p><?php esc_html_e( 'Firebase Authentication requires the Identity Toolkit API to be enabled for this Firebase project before users can be loaded or managed here.', 'backoffice-manager-for-firebase' ); ?></p>
+            <p>
+                <a class="button button-primary" href="<?php echo esc_url( $enable_api_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Enable Identity Toolkit API', 'backoffice-manager-for-firebase' ); ?></a>
+                <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=bomff-auth' ) ); ?>"><?php esc_html_e( 'Retry', 'backoffice-manager-for-firebase' ); ?></a>
+            </p>
+            <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
+                <details>
+                    <summary><?php esc_html_e( 'Technical details', 'backoffice-manager-for-firebase' ); ?></summary>
+                    <p><strong><?php echo esc_html( $message ); ?></strong></p>
+                    <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
+                </details>
+            <?php endif; ?>
+        </div>
+        <?php
+        return;
+    endif;
     ?>
     <div class="notice notice-error">
         <p><strong><?php echo esc_html( $message ); ?></strong></p>
@@ -40,7 +68,7 @@ function bomff_auth_render_error_notice( $message, $error_data = array() ) {
         <?php endif; ?>
         <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
             <details>
-                <summary><?php esc_html_e( 'Show details', 'backoffice-manager-for-firebase' ); ?></summary>
+                <summary><?php esc_html_e( 'Technical details', 'backoffice-manager-for-firebase' ); ?></summary>
                 <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
             </details>
         <?php endif; ?>

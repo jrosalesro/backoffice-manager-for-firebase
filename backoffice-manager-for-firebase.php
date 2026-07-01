@@ -1202,7 +1202,34 @@ function bomff_ajax_delete_structure() {
 add_action( 'wp_ajax_bomff_delete_structure', 'bomff_ajax_delete_structure' );
 
 
-function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message ) {
+function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details = array() ) {
+    $code    = strtoupper( (string) $firebase_code );
+    $message = strtoupper( (string) $firebase_message );
+
+    if ( false !== strpos( $message, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) || false !== strpos( $message, 'IDENTITY TOOLKIT API' ) ) {
+        if ( false !== strpos( $message, 'DISABLED' ) || false !== strpos( $message, 'NOT BEEN USED' ) || false !== strpos( $message, 'ENABLE IT' ) ) {
+            return true;
+        }
+    }
+
+    if ( in_array( $code, array( 'SERVICE_DISABLED', 'API_DISABLED' ), true ) ) {
+        return true;
+    }
+
+    if ( is_array( $details ) ) {
+        $encoded_details = strtoupper( wp_json_encode( $details ) );
+        $mentions_identity_toolkit = false !== strpos( $encoded_details, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' );
+        $mentions_disabled_api     = false !== strpos( $encoded_details, 'SERVICE_DISABLED' ) || false !== strpos( $encoded_details, 'API_DISABLED' );
+
+        if ( $mentions_identity_toolkit && $mentions_disabled_api ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details = array() ) {
     $suggestions = array();
     $code        = strtoupper( (string) $firebase_code );
     $message     = strtoupper( (string) $firebase_message );
@@ -1215,7 +1242,10 @@ function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_m
         $suggestions[] = __( 'The service account does not have permission to use Firebase Authentication. Grant the service account an IAM role that can manage Firebase Authentication users.', 'backoffice-manager-for-firebase' );
     }
 
-    if ( 404 === (int) $http_status || false !== strpos( $message, 'IDENTITYTOOLKIT' ) || ( false !== strpos( $message, 'API' ) && false !== strpos( $message, 'DISABLED' ) ) ) {
+    $mentions_identity_toolkit = false !== strpos( $message, 'IDENTITYTOOLKIT' );
+    $mentions_disabled_api     = false !== strpos( $message, 'API' ) && false !== strpos( $message, 'DISABLED' );
+
+    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details ) || 404 === (int) $http_status || $mentions_identity_toolkit || $mentions_disabled_api ) {
         $suggestions[] = __( 'Enable the Identity Toolkit API for this Firebase project, then retry the Authentication action.', 'backoffice-manager-for-firebase' );
     }
 
@@ -1246,12 +1276,14 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
     }
 
     return array(
-        'status'           => (int) $http_status,
-        'status_text'      => (string) $status_text,
-        'firebase_code'    => $firebase_code,
-        'firebase_message' => $firebase_message,
-        'suggestions'      => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message ),
-        'details'          => array(
+        'status'                        => (int) $http_status,
+        'status_text'                   => (string) $status_text,
+        'firebase_code'                 => $firebase_code,
+        'firebase_message'              => $firebase_message,
+        'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details ),
+        'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details ),
+        'project_id'                    => bomff_get_service_account()['project_id'] ?? '',
+        'details'                       => array(
             'method'       => $method,
             'url'          => $url,
             'request_body' => $request_body,
