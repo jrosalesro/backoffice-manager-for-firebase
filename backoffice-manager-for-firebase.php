@@ -1202,7 +1202,7 @@ function bomff_ajax_delete_structure() {
 add_action( 'wp_ajax_bomff_delete_structure', 'bomff_ajax_delete_structure' );
 
 
-function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details = array() ) {
+function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '' ) {
     $code    = strtoupper( (string) $firebase_code );
     $message = strtoupper( (string) $firebase_message );
 
@@ -1213,6 +1213,13 @@ function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_
     }
 
     if ( in_array( $code, array( 'SERVICE_DISABLED', 'API_DISABLED' ), true ) ) {
+        return true;
+    }
+
+    $request_url_mentions_identity_toolkit = false !== strpos( strtoupper( (string) $url ), 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' );
+    $looks_like_missing_identity_toolkit    = 404 === (int) $http_status && $request_url_mentions_identity_toolkit;
+
+    if ( $looks_like_missing_identity_toolkit ) {
         return true;
     }
 
@@ -1229,7 +1236,7 @@ function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_
     return false;
 }
 
-function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details = array() ) {
+function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '' ) {
     $suggestions = array();
     $code        = strtoupper( (string) $firebase_code );
     $message     = strtoupper( (string) $firebase_message );
@@ -1245,7 +1252,7 @@ function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_m
     $mentions_identity_toolkit = false !== strpos( $message, 'IDENTITYTOOLKIT' );
     $mentions_disabled_api     = false !== strpos( $message, 'API' ) && false !== strpos( $message, 'DISABLED' );
 
-    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details ) || 404 === (int) $http_status || $mentions_identity_toolkit || $mentions_disabled_api ) {
+    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ) || 404 === (int) $http_status || $mentions_identity_toolkit || $mentions_disabled_api ) {
         $suggestions[] = __( 'Enable the Identity Toolkit API for this Firebase project, then retry the Authentication action.', 'backoffice-manager-for-firebase' );
     }
 
@@ -1280,8 +1287,8 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
         'status_text'                   => (string) $status_text,
         'firebase_code'                 => $firebase_code,
         'firebase_message'              => $firebase_message,
-        'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details ),
-        'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details ),
+        'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details, $url ),
+        'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ),
         'project_id'                    => bomff_get_service_account()['project_id'] ?? '',
         'details'                       => array(
             'method'       => $method,
@@ -1297,6 +1304,10 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
 function bomff_auth_error_message_from_data( $error_data ) {
     if ( ! is_array( $error_data ) ) {
         return __( 'Firebase Authentication request failed.', 'backoffice-manager-for-firebase' );
+    }
+
+    if ( ! empty( $error_data['identity_toolkit_api_disabled'] ) ) {
+        return __( 'Firebase Authentication is not enabled for this project.', 'backoffice-manager-for-firebase' );
     }
 
     $parts = array();
