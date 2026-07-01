@@ -1,5 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
     const cfg = window.bomffFirebaseConfig || {};
+
+    document.querySelectorAll('.bomff-copy-uid').forEach((button) => {
+        if (button.dataset.bound) return;
+        button.dataset.bound = '1';
+        button.addEventListener('click', async () => {
+            const uid = button.dataset.uid || '';
+            try {
+                await navigator.clipboard.writeText(uid);
+                button.textContent = 'Copied';
+                setTimeout(() => { button.textContent = 'Copy UID'; }, 1500);
+            } catch (e) {
+                window.prompt('Copy UID', uid);
+            }
+        });
+    });
+
     const $ = (id) => document.getElementById(id);
 
     const els = {

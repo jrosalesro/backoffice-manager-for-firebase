@@ -365,3 +365,10 @@
     grid-template-columns:1fr;
   }
 }
+
+.bomff-auth-table{min-width:1300px;}
+.bomff-auth-actions{min-width:230px;}
+.bomff-auth-actions a,.bomff-auth-actions .button-link,.bomff-auth-actions .button-link-delete{display:block;margin:0 0 4px;text-align:left;}
+.bomff-inline-form{display:block;margin:0;}
+.bomff-detail-table th{width:180px;}
+.bomff-detail-table pre{white-space:pre-wrap;max-width:900px;overflow:auto;margin:0;}
