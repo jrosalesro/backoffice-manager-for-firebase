@@ -37,21 +37,26 @@ function bomff_auth_render_error_notice( $message, $error_data = array() ) {
     }
 
     if ( $is_identity_toolkit_disabled ) :
+        $retry_url = remove_query_arg( array( 'bomff_auth_error', 'bomff_auth_error_key' ) );
         ?>
-        <div class="notice notice-warning bomff-auth-warning-card">
-            <h2><?php esc_html_e( 'Identity Toolkit API needs to be enabled', 'backoffice-manager-for-firebase' ); ?></h2>
-            <p><?php esc_html_e( 'Firebase Authentication requires the Identity Toolkit API to be enabled for this Firebase project before users can be loaded or managed here.', 'backoffice-manager-for-firebase' ); ?></p>
-            <p>
-                <a class="button button-primary" href="<?php echo esc_url( $enable_api_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Enable Identity Toolkit API', 'backoffice-manager-for-firebase' ); ?></a>
-                <a class="button" href="<?php echo esc_url( admin_url( 'admin.php?page=bomff-auth' ) ); ?>"><?php esc_html_e( 'Retry', 'backoffice-manager-for-firebase' ); ?></a>
-            </p>
-            <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
-                <details>
-                    <summary><?php esc_html_e( 'Technical details', 'backoffice-manager-for-firebase' ); ?></summary>
-                    <p><strong><?php echo esc_html( $message ); ?></strong></p>
-                    <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
-                </details>
-            <?php endif; ?>
+        <div class="notice bomff-auth-info-card">
+            <div class="bomff-auth-info-card__icon" aria-hidden="true">ℹ️</div>
+            <div class="bomff-auth-info-card__content">
+                <h2><?php esc_html_e( 'Firebase Authentication is not enabled for this project.', 'backoffice-manager-for-firebase' ); ?></h2>
+                <p><?php esc_html_e( 'The Identity Toolkit API is required to manage Firebase Authentication users.', 'backoffice-manager-for-firebase' ); ?></p>
+                <p><?php esc_html_e( 'Enable the API in Google Cloud Console, wait a few moments for the change to propagate, then retry the operation.', 'backoffice-manager-for-firebase' ); ?></p>
+                <p class="bomff-auth-info-card__actions">
+                    <a class="button button-primary" href="<?php echo esc_url( $enable_api_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Enable Identity Toolkit API', 'backoffice-manager-for-firebase' ); ?></a>
+                    <a class="button" href="<?php echo esc_url( $retry_url ); ?>"><?php esc_html_e( 'Retry', 'backoffice-manager-for-firebase' ); ?></a>
+                </p>
+                <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
+                    <details>
+                        <summary><?php esc_html_e( 'Technical details', 'backoffice-manager-for-firebase' ); ?></summary>
+                        <p><strong><?php echo esc_html( $message ); ?></strong></p>
+                        <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
+                    </details>
+                <?php endif; ?>
+            </div>
         </div>
         <?php
         return;
