@@ -1202,8 +1202,21 @@ function bomff_ajax_delete_structure() {
 add_action( 'wp_ajax_bomff_delete_structure', 'bomff_ajax_delete_structure' );
 
 
+function bomff_auth_error_is_html_google_404( $http_status, $raw_body ) {
+    if ( 404 !== (int) $http_status ) {
+        return false;
+    }
+
+    $body = strtoupper( (string) $raw_body );
+    return false !== strpos( $body, '<HTML' ) && false !== strpos( $body, 'GOOGLE' ) && false !== strpos( $body, '404' );
+}
+
 function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '', $raw_body = '' ) {
-    unset( $http_status, $details, $url );
+    unset( $details, $url );
+
+    if ( bomff_auth_error_is_html_google_404( $http_status, $raw_body ) ) {
+        return false;
+    }
 
     $code      = strtoupper( (string) $firebase_code );
     $message   = strtoupper( (string) $firebase_message );
@@ -1232,7 +1245,9 @@ function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_m
         $suggestions[] = __( 'The service account does not have permission to use Firebase Authentication. Grant the service account an IAM role that can manage Firebase Authentication users.', 'backoffice-manager-for-firebase' );
     }
 
-    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ) ) {
+    if ( bomff_auth_error_is_html_google_404( $http_status, $raw_body ) ) {
+        $suggestions[] = __( 'Invalid endpoint URL. The Identity Toolkit request returned a Google HTML 404 page; verify the plugin is using the documented Firebase Auth REST endpoint.', 'backoffice-manager-for-firebase' );
+    } elseif ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ) ) {
         $suggestions[] = __( 'Enable the Identity Toolkit API for this Firebase project, then retry the Authentication action.', 'backoffice-manager-for-firebase' );
     } elseif ( 404 === (int) $http_status && false !== strpos( strtoupper( (string) $url ), 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) ) {
         $suggestions[] = __( 'Firebase Authentication endpoint not found or project mismatch. Check the project ID, endpoint URL and service account permissions.', 'backoffice-manager-for-firebase' );
@@ -1280,6 +1295,8 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
     $service_account = bomff_get_service_account();
     $project_id      = is_array( $service_account ) && ! empty( $service_account['project_id'] ) ? (string) $service_account['project_id'] : '';
 
+    $is_html_google_404 = bomff_auth_error_is_html_google_404( $http_status, $raw_body );
+
     return array(
         'status'                        => (int) $http_status,
         'status_text'                   => (string) $status_text,
@@ -1287,6 +1304,7 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
         'firebase_message'              => $firebase_message,
         'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ),
         'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ),
+        'invalid_endpoint_url'          => $is_html_google_404,
         'project_id'                    => $project_id,
         'details'                       => array(
             'request_url'          => $url,
@@ -1313,6 +1331,10 @@ function bomff_auth_error_message_from_data( $error_data ) {
 
     if ( ! empty( $error_data['identity_toolkit_api_disabled'] ) ) {
         return __( 'Firebase Authentication is not enabled for this project.', 'backoffice-manager-for-firebase' );
+    }
+
+    if ( ! empty( $error_data['invalid_endpoint_url'] ) ) {
+        return __( 'Invalid endpoint URL.', 'backoffice-manager-for-firebase' );
     }
 
     $parts = array();
@@ -1437,13 +1459,22 @@ function bomff_auth_normalize_user( $user ) {
     );
 }
 
+function bomff_auth_list_users_endpoint( $project_id ) {
+    return 'projects/' . rawurlencode( (string) $project_id ) . '/accounts';
+}
+
 function bomff_auth_list_users( $page_token = '', $max_results = 100 ) {
-    $body = array( 'maxResults' => max( 1, min( 1000, absint( $max_results ) ) ) );
-    if ( '' !== $page_token ) {
-        $body['nextPageToken'] = $page_token;
+    $service_account = bomff_get_service_account();
+    if ( ! $service_account || empty( $service_account['project_id'] ) ) {
+        return new WP_Error( 'not_configured', __( 'Firebase Service Account credentials are not configured. Upload a service account JSON key in Settings to use Authentication.', 'backoffice-manager-for-firebase' ) );
     }
 
-    $response = bomff_auth_request( 'POST', 'accounts:batchGet', $body );
+    $query = array( 'maxResults' => max( 1, min( 1000, absint( $max_results ) ) ) );
+    if ( '' !== $page_token ) {
+        $query['nextPageToken'] = $page_token;
+    }
+
+    $response = bomff_auth_request( 'GET', bomff_auth_list_users_endpoint( $service_account['project_id'] ), null, $query );
     if ( is_wp_error( $response ) ) {
         return $response;
     }
