@@ -1202,34 +1202,24 @@ function bomff_ajax_delete_structure() {
 add_action( 'wp_ajax_bomff_delete_structure', 'bomff_ajax_delete_structure' );
 
 
-function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '' ) {
-    $code    = strtoupper( (string) $firebase_code );
-    $message = strtoupper( (string) $firebase_message );
+function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '', $raw_body = '' ) {
+    unset( $http_status, $details, $url );
 
-    if ( false !== strpos( $message, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) || false !== strpos( $message, 'IDENTITY TOOLKIT API' ) ) {
-        if ( false !== strpos( $message, 'DISABLED' ) || false !== strpos( $message, 'NOT BEEN USED' ) || false !== strpos( $message, 'ENABLE IT' ) ) {
-            return true;
-        }
-    }
+    $code      = strtoupper( (string) $firebase_code );
+    $message   = strtoupper( (string) $firebase_message );
+    $raw_error = strtoupper( (string) $raw_body );
 
     if ( in_array( $code, array( 'SERVICE_DISABLED', 'API_DISABLED' ), true ) ) {
         return true;
     }
 
-    if ( is_array( $details ) ) {
-        $encoded_details = strtoupper( wp_json_encode( $details ) );
-        $mentions_identity_toolkit = false !== strpos( $encoded_details, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' );
-        $mentions_disabled_api     = false !== strpos( $encoded_details, 'SERVICE_DISABLED' ) || false !== strpos( $encoded_details, 'API_DISABLED' );
+    $api_is_named = false !== strpos( $raw_error, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) || false !== strpos( $raw_error, 'IDENTITY TOOLKIT API' ) || false !== strpos( $message, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) || false !== strpos( $message, 'IDENTITY TOOLKIT API' );
+    $api_disabled = false !== strpos( $raw_error, 'SERVICE_DISABLED' ) || false !== strpos( $raw_error, 'API_DISABLED' ) || false !== strpos( $raw_error, 'DISABLED' ) || false !== strpos( $raw_error, 'NOT BEEN USED' ) || false !== strpos( $raw_error, 'ENABLE IT' );
 
-        if ( $mentions_identity_toolkit && $mentions_disabled_api ) {
-            return true;
-        }
-    }
-
-    return false;
+    return $api_is_named && $api_disabled;
 }
 
-function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '' ) {
+function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details = array(), $url = '', $raw_body = '' ) {
     $suggestions = array();
     $code        = strtoupper( (string) $firebase_code );
     $message     = strtoupper( (string) $firebase_message );
@@ -1242,7 +1232,7 @@ function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_m
         $suggestions[] = __( 'The service account does not have permission to use Firebase Authentication. Grant the service account an IAM role that can manage Firebase Authentication users.', 'backoffice-manager-for-firebase' );
     }
 
-    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ) ) {
+    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ) ) {
         $suggestions[] = __( 'Enable the Identity Toolkit API for this Firebase project, then retry the Authentication action.', 'backoffice-manager-for-firebase' );
     } elseif ( 404 === (int) $http_status && false !== strpos( strtoupper( (string) $url ), 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) ) {
         $suggestions[] = __( 'Firebase Authentication endpoint not found or project mismatch. Check the project ID, endpoint URL and service account permissions.', 'backoffice-manager-for-firebase' );
@@ -1295,17 +1285,19 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
         'status_text'                   => (string) $status_text,
         'firebase_code'                 => $firebase_code,
         'firebase_message'              => $firebase_message,
-        'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details, $url ),
-        'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ),
+        'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ),
+        'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url, $raw_body ),
         'project_id'                    => $project_id,
         'details'                       => array(
             'request_url'          => $url,
+            'sanitized_request_url' => esc_url_raw( $url ),
             'method'               => $method,
             'project_id'           => $project_id,
             'http_status'          => (int) $http_status,
             'http_status_text'     => (string) $status_text,
             'firebase_error_code'  => $firebase_code,
             'firebase_message'     => $firebase_message,
+            'request_body_keys'    => is_array( $request_body ) ? array_keys( $request_body ) : array(),
             'request_body'         => $request_body,
             'response'             => is_array( $json ) ? $json : $raw_body,
             'raw_response_body'    => $raw_body,
@@ -1367,8 +1359,8 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
         return $token;
     }
 
-    // Firebase Auth admin operations use the Identity Toolkit v1 project-scoped accounts resource.
-    $url = sprintf( 'https://identitytoolkit.googleapis.com/v1/projects/%s/%s', rawurlencode( $service_account['project_id'] ), ltrim( $endpoint, '/' ) );
+    // Firebase Auth admin operations use the documented Identity Toolkit v1 accounts endpoints.
+    $url = 'https://identitytoolkit.googleapis.com/v1/' . ltrim( $endpoint, '/' );
     $query_string = bomff_build_query_string( $query );
     if ( '' !== $query_string ) {
         $url .= '?' . $query_string;
