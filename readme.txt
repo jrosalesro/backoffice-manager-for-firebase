@@ -1,4 +1,4 @@
-=== BackOffice Manager for Firebase ===
+=== Firebase Integration for WordPress – Firestore & Auth ===
 Contributors: jrosalesdev
 Tags: firebase, firestore, admin, backoffice, database
 Requires at least: 6.0
@@ -8,11 +8,11 @@ Stable tag: 0.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Manage Firebase Firestore directly from WordPress. Browse collections, edit documents, import structures and test everything with Demo Mode — no Firebase configuration required.
+Connect WordPress to Firebase Firestore and Authentication. Browse collections, manage documents, administer Firebase Auth users, import structures, and test everything with Demo Mode — no Firebase configuration required.
 
 == Description ==
 
-BackOffice Manager for Firebase allows you to manage data stored in Firebase Firestore directly from your WordPress admin dashboard.
+Firebase Integration for WordPress – Firestore & Auth allows you to manage data stored in Firebase Firestore and inspect Firebase Authentication users directly from your WordPress admin dashboard.
 
 The plugin provides a lightweight Firestore administration interface focused on browsing collections, managing documents, and performing common CRUD operations without leaving WordPress.
 
@@ -39,7 +39,7 @@ Note: This plugin requires your own Firebase project and credentials for product
 
 1. Upload the plugin folder to `/wp-content/plugins/` or install it through the WordPress Plugins screen.
 2. Activate the plugin through the 'Plugins' screen in WordPress.
-3. Open "BackOffice Manager for Firebase" from the WordPress admin menu.
+3. Open "Firebase Integration" from the WordPress admin menu.
 4. Configure your Firebase credentials under Settings or start with Demo Mode.
 
 == Frequently Asked Questions ==
