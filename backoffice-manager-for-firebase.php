@@ -1201,6 +1201,105 @@ function bomff_ajax_delete_structure() {
 }
 add_action( 'wp_ajax_bomff_delete_structure', 'bomff_ajax_delete_structure' );
 
+
+function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message ) {
+    $suggestions = array();
+    $code        = strtoupper( (string) $firebase_code );
+    $message     = strtoupper( (string) $firebase_message );
+
+    if ( 401 === (int) $http_status || false !== strpos( $message, 'UNAUTHENTICATED' ) ) {
+        $suggestions[] = __( 'The access token could not be generated or has expired. Re-save the service account credentials and try again.', 'backoffice-manager-for-firebase' );
+    }
+
+    if ( 403 === (int) $http_status || 'PERMISSION_DENIED' === $code || false !== strpos( $message, 'PERMISSION_DENIED' ) ) {
+        $suggestions[] = __( 'The service account does not have permission to use Firebase Authentication. Grant the service account an IAM role that can manage Firebase Authentication users.', 'backoffice-manager-for-firebase' );
+    }
+
+    if ( 404 === (int) $http_status || false !== strpos( $message, 'IDENTITYTOOLKIT' ) || ( false !== strpos( $message, 'API' ) && false !== strpos( $message, 'DISABLED' ) ) ) {
+        $suggestions[] = __( 'Enable the Identity Toolkit API for this Firebase project, then retry the Authentication action.', 'backoffice-manager-for-firebase' );
+    }
+
+    if ( false !== strpos( $message, 'PROJECT' ) && ( false !== strpos( $message, 'MISMATCH' ) || false !== strpos( $message, 'NOT FOUND' ) || false !== strpos( $message, 'INVALID' ) ) ) {
+        $suggestions[] = __( 'The configured Project ID may not match the service account credentials. Verify the Project ID in Settings and in the uploaded service account JSON.', 'backoffice-manager-for-firebase' );
+    }
+
+    if ( 'INVALID_ARGUMENT' === $code || false !== strpos( $message, 'INVALID_ARGUMENT' ) ) {
+        $suggestions[] = __( 'Check the submitted user ID, email address, and request parameters for invalid or missing values.', 'backoffice-manager-for-firebase' );
+    }
+
+    return array_values( array_unique( $suggestions ) );
+}
+
+function bomff_parse_auth_error_response( $response, $method, $url, $request_body = null ) {
+    $http_status  = wp_remote_retrieve_response_code( $response );
+    $status_text  = wp_remote_retrieve_response_message( $response );
+    $raw_body     = wp_remote_retrieve_body( $response );
+    $json        = '' !== $raw_body ? json_decode( $raw_body, true ) : array();
+    $error       = is_array( $json ) && isset( $json['error'] ) && is_array( $json['error'] ) ? $json['error'] : array();
+
+    $firebase_code    = isset( $error['status'] ) ? (string) $error['status'] : '';
+    $firebase_message = isset( $error['message'] ) ? (string) $error['message'] : __( 'Firebase Authentication request failed.', 'backoffice-manager-for-firebase' );
+    $details          = isset( $error['details'] ) && is_array( $error['details'] ) ? $error['details'] : array();
+
+    if ( '' === $firebase_code && isset( $error['code'] ) ) {
+        $firebase_code = (string) $error['code'];
+    }
+
+    return array(
+        'status'           => (int) $http_status,
+        'status_text'      => (string) $status_text,
+        'firebase_code'    => $firebase_code,
+        'firebase_message' => $firebase_message,
+        'suggestions'      => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message ),
+        'details'          => array(
+            'method'       => $method,
+            'url'          => $url,
+            'request_body' => $request_body,
+            'response'     => is_array( $json ) ? $json : $raw_body,
+            'raw_body'     => $raw_body,
+            'api_details'  => $details,
+        ),
+    );
+}
+
+function bomff_auth_error_message_from_data( $error_data ) {
+    if ( ! is_array( $error_data ) ) {
+        return __( 'Firebase Authentication request failed.', 'backoffice-manager-for-firebase' );
+    }
+
+    $parts = array();
+    if ( ! empty( $error_data['status'] ) ) {
+        $status_label = sprintf( __( 'HTTP %d', 'backoffice-manager-for-firebase' ), (int) $error_data['status'] );
+        if ( ! empty( $error_data['status_text'] ) ) {
+            $status_label .= ' ' . (string) $error_data['status_text'];
+        }
+        $parts[] = $status_label;
+    }
+    if ( ! empty( $error_data['firebase_code'] ) ) {
+        $parts[] = (string) $error_data['firebase_code'];
+    }
+    if ( ! empty( $error_data['firebase_message'] ) ) {
+        $parts[] = (string) $error_data['firebase_message'];
+    }
+
+    return ! empty( $parts ) ? implode( ' — ', $parts ) : __( 'Firebase Authentication request failed.', 'backoffice-manager-for-firebase' );
+}
+
+function bomff_auth_store_error_details( $error ) {
+    if ( ! is_wp_error( $error ) ) {
+        return '';
+    }
+
+    $data = $error->get_error_data();
+    if ( ! is_array( $data ) || empty( $data['bomff_auth_error'] ) ) {
+        return '';
+    }
+
+    $key = wp_generate_uuid4();
+    set_transient( 'bomff_auth_error_' . $key, $data, 10 * MINUTE_IN_SECONDS );
+    return $key;
+}
+
 function bomff_auth_request( $method, $endpoint, $body = null, $query = array() ) {
     $service_account = bomff_get_service_account();
     if ( ! $service_account || empty( $service_account['project_id'] ) ) {
@@ -1236,12 +1335,14 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
         return $response;
     }
 
-    $code = wp_remote_retrieve_response_code( $response );
-    $json = json_decode( wp_remote_retrieve_body( $response ), true );
+    $code     = wp_remote_retrieve_response_code( $response );
+    $raw_body = wp_remote_retrieve_body( $response );
+    $json     = '' !== $raw_body ? json_decode( $raw_body, true ) : array();
 
     if ( $code < 200 || $code >= 300 ) {
-        $message = isset( $json['error']['message'] ) ? $json['error']['message'] : __( 'Firebase Authentication request failed.', 'backoffice-manager-for-firebase' );
-        return new WP_Error( 'auth_error', $message, array( 'status' => $code ) );
+        $error_data = bomff_parse_auth_error_response( $response, $method, $url, $body );
+        $error_data['bomff_auth_error'] = true;
+        return new WP_Error( 'auth_error', bomff_auth_error_message_from_data( $error_data ), $error_data );
     }
 
     return is_array( $json ) ? $json : array();
@@ -1353,7 +1454,12 @@ function bomff_handle_auth_action() {
     }
 
     if ( is_wp_error( $result ) ) {
-        bomff_auth_admin_notice_redirect( array( 'page' => 'bomff-auth', 'bomff_auth_error' => rawurlencode( $result->get_error_message() ) ) );
+        $error_key = bomff_auth_store_error_details( $result );
+        $args      = array( 'page' => 'bomff-auth', 'bomff_auth_error' => rawurlencode( $result->get_error_message() ) );
+        if ( '' !== $error_key ) {
+            $args['bomff_auth_error_key'] = rawurlencode( $error_key );
+        }
+        bomff_auth_admin_notice_redirect( $args );
     }
 
     bomff_auth_admin_notice_redirect( array( 'page' => 'bomff-auth', 'bomff_auth_updated' => '1' ) );

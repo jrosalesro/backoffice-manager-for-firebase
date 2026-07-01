@@ -26,6 +26,43 @@ function bomff_auth_action_form( $action, $label, $user, $class = 'button-link' 
     </form>
     <?php
 }
+
+function bomff_auth_render_error_notice( $message, $error_data = array() ) {
+    ?>
+    <div class="notice notice-error">
+        <p><strong><?php echo esc_html( $message ); ?></strong></p>
+        <?php if ( is_array( $error_data ) && ! empty( $error_data['suggestions'] ) ) : ?>
+            <ul>
+                <?php foreach ( $error_data['suggestions'] as $suggestion ) : ?>
+                    <li><?php echo esc_html( $suggestion ); ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+        <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
+            <details>
+                <summary><?php esc_html_e( 'Show details', 'backoffice-manager-for-firebase' ); ?></summary>
+                <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
+            </details>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+function bomff_auth_get_notice_error_data() {
+    if ( empty( $_GET['bomff_auth_error_key'] ) ) {
+        return array();
+    }
+
+    $key = sanitize_text_field( wp_unslash( $_GET['bomff_auth_error_key'] ) );
+    if ( '' === $key ) {
+        return array();
+    }
+
+    $error_data = get_transient( 'bomff_auth_error_' . $key );
+    delete_transient( 'bomff_auth_error_' . $key );
+
+    return is_array( $error_data ) ? $error_data : array();
+}
 ?>
 
 <div class="wrap bomff-wrap">
@@ -36,7 +73,7 @@ function bomff_auth_action_form( $action, $label, $user, $class = 'button-link' 
     <?php endif; ?>
 
     <?php if ( isset( $_GET['bomff_auth_error'] ) ) : ?>
-        <div class="notice notice-error"><p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['bomff_auth_error'] ) ) ); ?></p></div>
+        <?php bomff_auth_render_error_notice( sanitize_text_field( wp_unslash( $_GET['bomff_auth_error'] ) ), bomff_auth_get_notice_error_data() ); ?>
     <?php endif; ?>
 
     <?php if ( ! $service_account ) : ?>
@@ -50,7 +87,7 @@ function bomff_auth_action_form( $action, $label, $user, $class = 'button-link' 
     <?php elseif ( $view_uid ) : ?>
         <?php $user = bomff_auth_get_user( $view_uid ); ?>
         <?php if ( is_wp_error( $user ) ) : ?>
-            <div class="notice notice-error"><p><?php echo esc_html( $user->get_error_message() ); ?></p></div>
+            <?php bomff_auth_render_error_notice( $user->get_error_message(), $user->get_error_data() ); ?>
         <?php else : ?>
             <p><a class="button" href="<?php echo esc_url( $base_url ); ?>"><?php esc_html_e( '← Back to users', 'backoffice-manager-for-firebase' ); ?></a></p>
             <div class="bomff-section bomff-mt-20">
@@ -75,7 +112,7 @@ function bomff_auth_action_form( $action, $label, $user, $class = 'button-link' 
     <?php else : ?>
         <?php $result = bomff_auth_list_users( $page_token, 100 ); ?>
         <?php if ( is_wp_error( $result ) ) : ?>
-            <div class="notice notice-error"><p><?php echo esc_html( $result->get_error_message() ); ?></p></div>
+            <?php bomff_auth_render_error_notice( $result->get_error_message(), $result->get_error_data() ); ?>
         <?php else : ?>
             <?php $users = bomff_auth_filter_users( $result['users'], $search ); ?>
             <form method="get" class="search-form bomff-mt-20">
