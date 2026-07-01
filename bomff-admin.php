@@ -22,7 +22,7 @@ $firebase_pricing_url  = 'https://firebase.google.com/pricing';
 ?>
 
 <div class="wrap">
-    <h1><?php esc_html_e( 'BackOffice Manager — Home', 'backoffice-manager-for-firebase' ); ?></h1>
+    <h1><?php esc_html_e( 'Firebase Integration — Home', 'backoffice-manager-for-firebase' ); ?></h1>
     <p class="description">
         <?php esc_html_e( 'System status, quick links, and official usage & billing pages (Spark/Blaze).', 'backoffice-manager-for-firebase' ); ?>
     </p>
@@ -50,7 +50,7 @@ $firebase_pricing_url  = 'https://firebase.google.com/pricing';
                 <table class="form-table" role="presentation">
                     <tr>
                         <th scope="row"><label for="bomff-auth-email"><?php esc_html_e( 'Email', 'backoffice-manager-for-firebase' ); ?></label></th>
-                        <td><input type="email" id="bomff-auth-email" class="regular-text" placeholder="demo@backoffice.test" /></td>
+                        <td><input type="email" id="bomff-auth-email" class="regular-text" placeholder="demo@firebase.test" /></td>
                     </tr>
                     <tr>
                         <th scope="row"><label for="bomff-auth-password"><?php esc_html_e( 'Password', 'backoffice-manager-for-firebase' ); ?></label></th>
@@ -168,7 +168,7 @@ $firebase_pricing_url  = 'https://firebase.google.com/pricing';
             </p>
 
             <p style="color:#666; margin-top:10px;">
-                <?php esc_html_e( 'Tip: avoid large BackOffice loads (full collections / continuous listeners) if you want to minimize reads.', 'backoffice-manager-for-firebase' ); ?>
+                <?php esc_html_e( 'Tip: avoid large Firebase admin loads (full collections / continuous listeners) if you want to minimize reads.', 'backoffice-manager-for-firebase' ); ?>
             </p>
         </div>
 

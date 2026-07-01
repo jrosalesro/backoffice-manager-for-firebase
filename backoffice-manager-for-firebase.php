@@ -1,7 +1,7 @@
 <?php
 /*
-Plugin Name: BackOffice Manager for Firebase
-Description: Manage Firebase Firestore collections and documents from your WordPress admin area.
+Plugin Name: Firebase Integration for WordPress – Firestore & Auth
+Description: Connect WordPress to Firebase Firestore and Authentication to manage collections, documents, and Auth users from your admin area.
 Version: 0.4.0
 Author: José Rosales Rosendo
 License: GPLv2 or later
@@ -96,7 +96,7 @@ function bomff_render_welcome_screen() {
     <div class="wrap bomff-wrap bomff-welcome-wrap">
         <div class="bomff-welcome-hero">
             <p class="bomff-welcome-kicker"><?php esc_html_e( 'Getting Started', 'backoffice-manager-for-firebase' ); ?></p>
-            <h1><?php esc_html_e( 'Welcome to Firebase BackOffice', 'backoffice-manager-for-firebase' ); ?></h1>
+            <h1><?php esc_html_e( 'Welcome to Firebase Integration for WordPress', 'backoffice-manager-for-firebase' ); ?></h1>
             <p class="bomff-welcome-description">
                 <?php esc_html_e( 'Manage your Firebase data directly from WordPress.', 'backoffice-manager-for-firebase' ); ?>
             </p>
@@ -177,8 +177,8 @@ add_action( 'admin_post_bomff_show_onboarding', 'bomff_handle_show_onboarding' )
 
 function bomff_add_admin_menu() {
     add_menu_page(
-        __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
-        __( 'Firebase', 'backoffice-manager-for-firebase' ),
+        __( 'Firebase Integration for WordPress', 'backoffice-manager-for-firebase' ),
+        __( 'Firebase Integration', 'backoffice-manager-for-firebase' ),
         BOMFF_CAPABILITY,
         'bomff-admin-panel',
         'bomff_render_firestore_page',
