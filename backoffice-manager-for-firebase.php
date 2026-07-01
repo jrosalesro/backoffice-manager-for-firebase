@@ -178,7 +178,7 @@ add_action( 'admin_post_bomff_show_onboarding', 'bomff_handle_show_onboarding' )
 function bomff_add_admin_menu() {
     add_menu_page(
         __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
-        __( 'BOM Firebase', 'backoffice-manager-for-firebase' ),
+        __( 'Firebase', 'backoffice-manager-for-firebase' ),
         BOMFF_CAPABILITY,
         'bomff-admin-panel',
         'bomff_render_firestore_page',
