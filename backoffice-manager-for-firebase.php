@@ -1216,13 +1216,6 @@ function bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_
         return true;
     }
 
-    $request_url_mentions_identity_toolkit = false !== strpos( strtoupper( (string) $url ), 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' );
-    $looks_like_missing_identity_toolkit    = 404 === (int) $http_status && $request_url_mentions_identity_toolkit;
-
-    if ( $looks_like_missing_identity_toolkit ) {
-        return true;
-    }
-
     if ( is_array( $details ) ) {
         $encoded_details = strtoupper( wp_json_encode( $details ) );
         $mentions_identity_toolkit = false !== strpos( $encoded_details, 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' );
@@ -1249,11 +1242,10 @@ function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_m
         $suggestions[] = __( 'The service account does not have permission to use Firebase Authentication. Grant the service account an IAM role that can manage Firebase Authentication users.', 'backoffice-manager-for-firebase' );
     }
 
-    $mentions_identity_toolkit = false !== strpos( $message, 'IDENTITYTOOLKIT' );
-    $mentions_disabled_api     = false !== strpos( $message, 'API' ) && false !== strpos( $message, 'DISABLED' );
-
-    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ) || 404 === (int) $http_status || $mentions_identity_toolkit || $mentions_disabled_api ) {
+    if ( bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ) ) {
         $suggestions[] = __( 'Enable the Identity Toolkit API for this Firebase project, then retry the Authentication action.', 'backoffice-manager-for-firebase' );
+    } elseif ( 404 === (int) $http_status && false !== strpos( strtoupper( (string) $url ), 'IDENTITYTOOLKIT.GOOGLEAPIS.COM' ) ) {
+        $suggestions[] = __( 'Firebase Authentication endpoint not found or project mismatch. Check the project ID, endpoint URL and service account permissions.', 'backoffice-manager-for-firebase' );
     }
 
     if ( false !== strpos( $message, 'PROJECT' ) && ( false !== strpos( $message, 'MISMATCH' ) || false !== strpos( $message, 'NOT FOUND' ) || false !== strpos( $message, 'INVALID' ) ) ) {
@@ -1265,6 +1257,19 @@ function bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_m
     }
 
     return array_values( array_unique( $suggestions ) );
+}
+
+function bomff_auth_log_debug( $message, $context = array() ) {
+    if ( ! defined( 'WP_DEBUG' ) || ! WP_DEBUG ) {
+        return;
+    }
+
+    if ( ! is_array( $context ) ) {
+        $context = array( 'context' => $context );
+    }
+
+    // phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log
+    error_log( '[BOMFF Auth] ' . $message . ' ' . wp_json_encode( $context, JSON_UNESCAPED_SLASHES ) );
 }
 
 function bomff_parse_auth_error_response( $response, $method, $url, $request_body = null ) {
@@ -1282,6 +1287,9 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
         $firebase_code = (string) $error['code'];
     }
 
+    $service_account = bomff_get_service_account();
+    $project_id      = is_array( $service_account ) && ! empty( $service_account['project_id'] ) ? (string) $service_account['project_id'] : '';
+
     return array(
         'status'                        => (int) $http_status,
         'status_text'                   => (string) $status_text,
@@ -1289,14 +1297,19 @@ function bomff_parse_auth_error_response( $response, $method, $url, $request_bod
         'firebase_message'              => $firebase_message,
         'suggestions'                   => bomff_auth_error_suggestions( $http_status, $firebase_code, $firebase_message, $details, $url ),
         'identity_toolkit_api_disabled' => bomff_auth_error_is_identity_toolkit_disabled( $http_status, $firebase_code, $firebase_message, $details, $url ),
-        'project_id'                    => bomff_get_service_account()['project_id'] ?? '',
+        'project_id'                    => $project_id,
         'details'                       => array(
-            'method'       => $method,
-            'url'          => $url,
-            'request_body' => $request_body,
-            'response'     => is_array( $json ) ? $json : $raw_body,
-            'raw_body'     => $raw_body,
-            'api_details'  => $details,
+            'request_url'          => $url,
+            'method'               => $method,
+            'project_id'           => $project_id,
+            'http_status'          => (int) $http_status,
+            'http_status_text'     => (string) $status_text,
+            'firebase_error_code'  => $firebase_code,
+            'firebase_message'     => $firebase_message,
+            'request_body'         => $request_body,
+            'response'             => is_array( $json ) ? $json : $raw_body,
+            'raw_response_body'    => $raw_body,
+            'firebase_error_details' => $details,
         ),
     );
 }
@@ -1354,6 +1367,7 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
         return $token;
     }
 
+    // Firebase Auth admin operations use the Identity Toolkit v1 project-scoped accounts resource.
     $url = sprintf( 'https://identitytoolkit.googleapis.com/v1/projects/%s/%s', rawurlencode( $service_account['project_id'] ), ltrim( $endpoint, '/' ) );
     $query_string = bomff_build_query_string( $query );
     if ( '' !== $query_string ) {
@@ -1373,14 +1387,38 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
         $args['body'] = wp_json_encode( $body );
     }
 
+    $normalized_request = array(
+        'method'       => $method,
+        'url'          => $url,
+        'project_id'   => (string) $service_account['project_id'],
+        'endpoint'     => ltrim( $endpoint, '/' ),
+        'query'        => $query,
+        'request_body' => $body,
+    );
+
+    bomff_auth_log_debug( 'Request', $normalized_request );
+
     $response = wp_remote_request( $url, $args );
     if ( is_wp_error( $response ) ) {
+        bomff_auth_log_debug( 'Response', array(
+            'request'       => $normalized_request,
+            'wp_error_code' => $response->get_error_code(),
+            'wp_error_message' => $response->get_error_message(),
+        ) );
         return $response;
     }
 
     $code     = wp_remote_retrieve_response_code( $response );
     $raw_body = wp_remote_retrieve_body( $response );
     $json     = '' !== $raw_body ? json_decode( $raw_body, true ) : array();
+
+    bomff_auth_log_debug( 'Response', array(
+        'request'           => $normalized_request,
+        'http_status'       => (int) $code,
+        'http_status_text'  => wp_remote_retrieve_response_message( $response ),
+        'response'          => is_array( $json ) ? $json : $raw_body,
+        'raw_response_body' => $raw_body,
+    ) );
 
     if ( $code < 200 || $code >= 300 ) {
         $error_data = bomff_parse_auth_error_response( $response, $method, $url, $body );
