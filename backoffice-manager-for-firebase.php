@@ -1460,7 +1460,7 @@ function bomff_auth_normalize_user( $user ) {
 }
 
 function bomff_auth_list_users_endpoint( $project_id ) {
-    return 'projects/' . rawurlencode( (string) $project_id ) . '/accounts';
+    return 'projects/' . rawurlencode( (string) $project_id ) . '/accounts:batchGet';
 }
 
 function bomff_auth_list_users( $page_token = '', $max_results = 100 ) {
