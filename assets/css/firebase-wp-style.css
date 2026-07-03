@@ -366,9 +366,20 @@
   }
 }
 
-.bomff-auth-table{min-width:1300px;}
-.bomff-auth-actions{min-width:230px;}
-.bomff-auth-actions a,.bomff-auth-actions .button-link,.bomff-auth-actions .button-link-delete{display:block;margin:0 0 4px;text-align:left;}
+.bomff-auth-search-form{margin:12px 0 8px;}
+.bomff-auth-search-form:after{content:"";display:table;clear:both;}
+.bomff-auth-search-form .search-box{float:right;margin:0;}
+.bomff-auth-list-table-wrap{clear:both;margin-top:12px;}
+.bomff-auth-table{min-width:1120px;}
+.bomff-auth-table .column-primary{width:21%;}
+.bomff-auth-uid{font-family:Consolas,Monaco,monospace;word-break:break-all;}
+.bomff-copy-uid{margin-left:6px;vertical-align:middle;color:#2271b1;}
+.bomff-copy-uid .dashicons{width:16px;height:16px;font-size:16px;line-height:1.35;}
+.bomff-copy-feedback{display:inline-block;margin-left:6px;color:#008a20;font-size:12px;vertical-align:middle;}
+.bomff-inline-form.bomff-row-action-form{display:inline;margin:0;}
+.bomff-row-action-form button{display:inline;padding:0;border:0;background:transparent;box-shadow:none;line-height:inherit;vertical-align:baseline;}
+.row-actions .delete .button-link-delete{color:#b32d2e;}
+.row-actions .delete .button-link-delete:hover,.row-actions .delete .button-link-delete:focus{color:#8a2424;}
 .bomff-inline-form{display:block;margin:0;}
 .bomff-detail-table th{width:180px;}
 .bomff-detail-table pre{white-space:pre-wrap;max-width:900px;overflow:auto;margin:0;}
