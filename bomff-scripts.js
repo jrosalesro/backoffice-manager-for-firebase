@@ -8,8 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const uid = button.dataset.uid || '';
             try {
                 await navigator.clipboard.writeText(uid);
-                button.textContent = 'Copied';
-                setTimeout(() => { button.textContent = 'Copy UID'; }, 1500);
+                const feedback = button.parentElement?.querySelector('.bomff-copy-feedback');
+                if (feedback) {
+                    feedback.textContent = 'Copied!';
+                    setTimeout(() => { feedback.textContent = ''; }, 1500);
+                }
             } catch (e) {
                 window.prompt('Copy UID', uid);
             }

@@ -13,10 +13,10 @@ $search          = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET[
 $page_token      = isset( $_GET['page_token'] ) ? sanitize_text_field( wp_unslash( $_GET['page_token'] ) ) : '';
 $base_url        = admin_url( 'admin.php?page=bomff-auth' );
 
-function bomff_auth_action_form( $action, $label, $user, $class = 'button-link' ) {
+function bomff_auth_action_form( $action, $label, $user, $class = 'button-link', $row_action_class = '' ) {
     $confirm = 'delete' === $action ? "return confirm('Are you sure you want to permanently delete this Firebase Auth user?');" : '';
     ?>
-    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bomff-inline-form" onsubmit="<?php echo esc_attr( $confirm ); ?>">
+    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bomff-inline-form<?php echo $row_action_class ? ' ' . esc_attr( $row_action_class ) : ''; ?>" onsubmit="<?php echo esc_attr( $confirm ); ?>">
         <?php wp_nonce_field( 'bomff_auth_action_' . $action . '_' . $user['uid'] ); ?>
         <input type="hidden" name="action" value="bomff_auth_action" />
         <input type="hidden" name="bomff_auth_action" value="<?php echo esc_attr( $action ); ?>" />
@@ -148,7 +148,7 @@ function bomff_auth_get_notice_error_data() {
             <?php bomff_auth_render_error_notice( $result->get_error_message(), $result->get_error_data() ); ?>
         <?php else : ?>
             <?php $users = bomff_auth_filter_users( $result['users'], $search ); ?>
-            <form method="get" class="search-form bomff-mt-20">
+            <form method="get" class="search-form bomff-auth-search-form">
                 <input type="hidden" name="page" value="bomff-auth" />
                 <p class="search-box">
                     <label class="screen-reader-text" for="bomff-auth-search"><?php esc_html_e( 'Search users', 'backoffice-manager-for-firebase' ); ?></label>
@@ -157,31 +157,31 @@ function bomff_auth_get_notice_error_data() {
                 </p>
             </form>
 
-            <div class="bomff-table-scroll bomff-mt-20">
-                <table class="widefat striped bomff-auth-table">
-                    <thead><tr><th><?php esc_html_e( 'UID', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Email', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Display name', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Provider(s)', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Email verified', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Disabled', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Created date', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?></th><th><?php esc_html_e( 'Actions', 'backoffice-manager-for-firebase' ); ?></th></tr></thead>
+            <div class="bomff-table-scroll bomff-auth-list-table-wrap">
+                <table class="wp-list-table widefat fixed striped table-view-list bomff-auth-table">
+                    <thead><tr><th scope="col" class="column-primary"><?php esc_html_e( 'UID', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Email', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Display name', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Provider(s)', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Email verified', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Disabled', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Created date', 'backoffice-manager-for-firebase' ); ?></th><th scope="col"><?php esc_html_e( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?></th></tr></thead>
                     <tbody>
                     <?php if ( empty( $users ) ) : ?>
-                        <tr><td colspan="9" class="bomff-center-muted"><?php esc_html_e( 'No Firebase Auth users found.', 'backoffice-manager-for-firebase' ); ?></td></tr>
+                        <tr><td colspan="8" class="bomff-center-muted"><?php echo '' !== $search ? esc_html__( 'No users matched your search.', 'backoffice-manager-for-firebase' ) : esc_html__( 'No Firebase Authentication users found.', 'backoffice-manager-for-firebase' ); ?></td></tr>
                     <?php else : ?>
                         <?php foreach ( $users as $user ) : ?>
                             <tr>
-                                <td><code><?php echo esc_html( $user['uid'] ); ?></code></td>
-                                <td><?php echo esc_html( $user['email'] ?: '—' ); ?></td>
-                                <td><?php echo esc_html( $user['displayName'] ?: '—' ); ?></td>
-                                <td><?php echo esc_html( bomff_auth_provider_labels( $user ) ); ?></td>
-                                <td><?php echo $user['emailVerified'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td>
-                                <td><?php echo $user['disabled'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td>
-                                <td><?php echo bomff_auth_format_date( $user['createdAt'] ); ?></td>
-                                <td><?php echo bomff_auth_format_date( $user['lastLoginAt'] ); ?></td>
-                                <td class="bomff-auth-actions">
-                                    <a href="<?php echo esc_url( add_query_arg( 'uid', rawurlencode( $user['uid'] ), $base_url ) ); ?>"><?php esc_html_e( 'View details', 'backoffice-manager-for-firebase' ); ?></a>
-                                    <?php bomff_auth_action_form( 'password_reset', __( 'Send password reset email', 'backoffice-manager-for-firebase' ), $user ); ?>
-                                    <?php bomff_auth_action_form( 'email_verification', __( 'Send email verification email', 'backoffice-manager-for-firebase' ), $user ); ?>
-                                    <?php bomff_auth_action_form( $user['disabled'] ? 'enable' : 'disable', $user['disabled'] ? __( 'Enable user', 'backoffice-manager-for-firebase' ) : __( 'Disable user', 'backoffice-manager-for-firebase' ), $user ); ?>
-                                    <?php bomff_auth_action_form( 'delete', __( 'Delete user', 'backoffice-manager-for-firebase' ), $user, 'button-link-delete' ); ?>
-                                    <button type="button" class="button-link bomff-copy-uid" data-uid="<?php echo esc_attr( $user['uid'] ); ?>"><?php esc_html_e( 'Copy UID', 'backoffice-manager-for-firebase' ); ?></button>
+                                <td class="column-primary" data-colname="<?php echo esc_attr__( 'UID', 'backoffice-manager-for-firebase' ); ?>"><code class="bomff-auth-uid"><?php echo esc_html( $user['uid'] ); ?></code><button type="button" class="button-link bomff-copy-uid" data-uid="<?php echo esc_attr( $user['uid'] ); ?>" aria-label="<?php echo esc_attr__( 'Copy UID', 'backoffice-manager-for-firebase' ); ?>" title="<?php echo esc_attr__( 'Copy UID', 'backoffice-manager-for-firebase' ); ?>"><span class="dashicons dashicons-admin-page" aria-hidden="true"></span><span class="screen-reader-text"><?php esc_html_e( 'Copy UID', 'backoffice-manager-for-firebase' ); ?></span></button><span class="bomff-copy-feedback" aria-live="polite"></span><button type="button" class="toggle-row"><span class="screen-reader-text"><?php esc_html_e( 'Show more details', 'backoffice-manager-for-firebase' ); ?></span></button></td>
+                                <td data-colname="<?php echo esc_attr__( 'Email', 'backoffice-manager-for-firebase' ); ?>"><?php echo esc_html( $user['email'] ?: '—' ); ?>
+                                    <div class="row-actions">
+                                        <span class="view"><a href="<?php echo esc_url( add_query_arg( 'uid', rawurlencode( $user['uid'] ), $base_url ) ); ?>"><?php esc_html_e( 'View details', 'backoffice-manager-for-firebase' ); ?></a> | </span>
+                                        <span class="password-reset"><?php bomff_auth_action_form( 'password_reset', __( 'Reset password', 'backoffice-manager-for-firebase' ), $user, 'button-link', 'bomff-row-action-form' ); ?> | </span>
+                                        <span class="email-verification"><?php bomff_auth_action_form( 'email_verification', __( 'Send verification', 'backoffice-manager-for-firebase' ), $user, 'button-link', 'bomff-row-action-form' ); ?> | </span>
+                                        <span class="toggle-disabled"><?php bomff_auth_action_form( $user['disabled'] ? 'enable' : 'disable', $user['disabled'] ? __( 'Enable', 'backoffice-manager-for-firebase' ) : __( 'Disable', 'backoffice-manager-for-firebase' ), $user, 'button-link', 'bomff-row-action-form' ); ?> | </span>
+                                        <span class="delete"><?php bomff_auth_action_form( 'delete', __( 'Delete', 'backoffice-manager-for-firebase' ), $user, 'button-link-delete', 'bomff-row-action-form' ); ?></span>
+                                    </div>
                                 </td>
+                                <td data-colname="<?php echo esc_attr__( 'Display name', 'backoffice-manager-for-firebase' ); ?>"><?php echo esc_html( $user['displayName'] ?: '—' ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Provider(s)', 'backoffice-manager-for-firebase' ); ?>"><?php echo esc_html( bomff_auth_provider_labels( $user ) ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Email verified', 'backoffice-manager-for-firebase' ); ?>"><?php echo $user['emailVerified'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Disabled', 'backoffice-manager-for-firebase' ); ?>"><?php echo $user['disabled'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Created date', 'backoffice-manager-for-firebase' ); ?>"><?php echo bomff_auth_format_date( $user['createdAt'] ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?>"><?php echo bomff_auth_format_date( $user['lastLoginAt'] ); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
