@@ -44,7 +44,7 @@ function bomff_is_demo_mode_context() {
 }
 
 function bomff_is_demo_mode_request() {
-    $demo = isset( $_POST['demoMode'] ) ? sanitize_text_field( wp_unslash( $_POST['demoMode'] ) ) : '';
+    $demo = isset( $_POST['demoMode'] ) && is_string( $_POST['demoMode'] ) ? sanitize_text_field( wp_unslash( $_POST['demoMode'] ) ) : '';
     return '1' === $demo || 'true' === $demo;
 }
 
@@ -516,25 +516,21 @@ function bomff_handle_service_account_upload() {
 
     check_admin_referer( 'bomff_save_service_account' );
 
-    $uploaded_file = isset( $_FILES['bomff_service_account_json'] ) && is_array( $_FILES['bomff_service_account_json'] )
-        ? array_map( 'wp_unslash', $_FILES['bomff_service_account_json'] )
-        : array();
-
-    if ( empty( $uploaded_file['tmp_name'] ) ) {
+    if ( ! isset( $_FILES['bomff_service_account_json'] ) || ! is_array( $_FILES['bomff_service_account_json'] ) ) {
         wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Please select a Service Account JSON file.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 
-    $file = $uploaded_file;
-
-    if ( ! empty( $file['error'] ) ) {
+    $upload_error = isset( $_FILES['bomff_service_account_json']['error'] ) ? absint( $_FILES['bomff_service_account_json']['error'] ) : UPLOAD_ERR_NO_FILE;
+    if ( UPLOAD_ERR_OK !== $upload_error ) {
         wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Upload failed.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 
-    $temporary_path = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
-    $original_name  = isset( $file['name'] ) ? sanitize_file_name( $file['name'] ) : '';
-    $file_size      = isset( $file['size'] ) ? absint( $file['size'] ) : 0;
+    // PHP supplies tmp_name; it must remain unchanged for is_uploaded_file() to verify its origin.
+    $temporary_path = isset( $_FILES['bomff_service_account_json']['tmp_name'] ) && is_string( $_FILES['bomff_service_account_json']['tmp_name'] ) ? $_FILES['bomff_service_account_json']['tmp_name'] : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $original_name  = isset( $_FILES['bomff_service_account_json']['name'] ) && is_string( $_FILES['bomff_service_account_json']['name'] ) ? sanitize_file_name( wp_unslash( $_FILES['bomff_service_account_json']['name'] ) ) : '';
+    $file_size      = isset( $_FILES['bomff_service_account_json']['size'] ) ? absint( $_FILES['bomff_service_account_json']['size'] ) : 0;
 
     if ( ! is_uploaded_file( $temporary_path ) || $file_size < 1 || $file_size > 1024 * 1024 || 'json' !== strtolower( pathinfo( $original_name, PATHINFO_EXTENSION ) ) ) {
         wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Please upload a valid JSON file no larger than 1 MB.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
@@ -752,7 +748,7 @@ function bomff_firestore_request( $method, $path = '', $body = null, $query = ar
 }
 
 function bomff_clean_collection_or_doc_id( $value ) {
-    $value = sanitize_text_field( wp_unslash( $value ) );
+    $value = sanitize_text_field( $value );
     $value = trim( $value, " \t\n\r\0\x0B/" );
 
     if ( '' === $value || preg_match( '#(^|/)\.\.?($|/)#', $value ) ) {
@@ -1156,10 +1152,7 @@ function bomff_ajax_require_admin() {
         wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'backoffice-manager-for-firebase' ) ), 403 );
     }
 
-    $nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['nonce'] ) ) : '';
-    if ( ! wp_verify_nonce( $nonce, 'bomff_ajax' ) ) {
-        wp_send_json_error( array( 'message' => __( 'Invalid nonce.', 'backoffice-manager-for-firebase' ) ), 403 );
-    }
+    check_ajax_referer( 'bomff_ajax', 'nonce' );
 }
 
 function bomff_ajax_get_status() {
@@ -1196,7 +1189,7 @@ add_action( 'wp_ajax_bomff_get_status', 'bomff_ajax_get_status' );
 function bomff_ajax_list_documents() {
     bomff_ajax_require_admin();
 
-    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
+    $collection = isset( $_POST['collection'] ) && is_string( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
     $page_size  = isset( $_POST['pageSize'] ) ? max( 1, min( 100, absint( wp_unslash( $_POST['pageSize'] ) ) ) ) : 25;
     $page_token = isset( $_POST['pageToken'] ) ? sanitize_text_field( wp_unslash( $_POST['pageToken'] ) ) : '';
 
@@ -1230,8 +1223,8 @@ add_action( 'wp_ajax_bomff_list_documents', 'bomff_ajax_list_documents' );
 function bomff_ajax_get_document() {
     bomff_ajax_require_admin();
 
-    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
-    $doc_id     = isset( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['docId'] ) ) : '';
+    $collection = isset( $_POST['collection'] ) && is_string( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
+    $doc_id     = isset( $_POST['docId'] ) && is_string( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['docId'] ) ) : '';
 
     if ( empty( $collection ) || empty( $doc_id ) ) {
         wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
@@ -1258,9 +1251,10 @@ add_action( 'wp_ajax_bomff_get_document', 'bomff_ajax_get_document' );
 function bomff_ajax_save_document() {
     bomff_ajax_require_admin();
 
-    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
-    $doc_id     = isset( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['docId'] ) ) : '';
-    $data_raw   = isset( $_POST['data'] ) ? wp_unslash( $_POST['data'] ) : '';
+    $collection = isset( $_POST['collection'] ) && is_string( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
+    $doc_id     = isset( $_POST['docId'] ) && is_string( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['docId'] ) ) : '';
+    // JSON cannot be sanitized as a string without corrupting its types; every decoded key and value is sanitized below.
+    $data_raw = isset( $_POST['data'] ) && is_string( $_POST['data'] ) ? wp_unslash( $_POST['data'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
     if ( empty( $collection ) || empty( $doc_id ) ) {
         wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
@@ -1304,8 +1298,8 @@ add_action( 'wp_ajax_bomff_save_document', 'bomff_ajax_save_document' );
 function bomff_ajax_delete_document() {
     bomff_ajax_require_admin();
 
-    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
-    $doc_id     = isset( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['docId'] ) ) : '';
+    $collection = isset( $_POST['collection'] ) && is_string( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
+    $doc_id     = isset( $_POST['docId'] ) && is_string( $_POST['docId'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['docId'] ) ) : '';
 
     if ( empty( $collection ) || empty( $doc_id ) ) {
         wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
@@ -1335,8 +1329,9 @@ add_action( 'wp_ajax_bomff_get_structure', 'bomff_ajax_get_structure' );
 function bomff_ajax_save_structure() {
     bomff_ajax_require_admin();
 
-    $collection = isset( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
-    $fields_raw = isset( $_POST['fields'] ) ? wp_unslash( $_POST['fields'] ) : '';
+    $collection = isset( $_POST['collection'] ) && is_string( $_POST['collection'] ) ? bomff_clean_collection_or_doc_id( wp_unslash( $_POST['collection'] ) ) : '';
+    // JSON is decoded first so field names, types, and booleans can be validated independently below.
+    $fields_raw = isset( $_POST['fields'] ) && is_string( $_POST['fields'] ) ? wp_unslash( $_POST['fields'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
     if ( empty( $collection ) ) {
         wp_send_json_error( array( 'message' => __( 'Empty collection.', 'backoffice-manager-for-firebase' ) ), 400 );
