@@ -13,13 +13,16 @@ trap cleanup EXIT
 
 mkdir -p "${output_directory}" "${staging_directory}/${plugin_slug}"
 
-git -C "${repository_root}" archive --format=tar HEAD \
+git -C "${repository_root}" archive --format=tar HEAD -- \
+    assets \
+    languages \
+    pages \
+    backoffice-manager-for-firebase.php \
+    bomff-admin.php \
+    bomff-scripts.js \
+    bomff-settings.php \
+    readme.txt \
     | tar -x -C "${staging_directory}/${plugin_slug}"
-
-rm -rf \
-    "${staging_directory}/${plugin_slug}/.gitignore" \
-    "${staging_directory}/${plugin_slug}/bin" \
-    "${staging_directory}/${plugin_slug}/dist"
 
 (
     cd "${staging_directory}"
