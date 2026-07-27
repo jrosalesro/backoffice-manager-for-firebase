@@ -533,6 +533,7 @@ function bomff_handle_service_account_upload() {
 
     update_option( 'bomff_service_account_encrypted', $encrypted, false );
     delete_transient( 'bomff_firebase_access_token_v2' );
+    delete_transient( 'bomff_firebase_access_token_v3' );
 
     wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_saved' => '1' ), admin_url( 'admin.php' ) ) );
     exit;
@@ -548,6 +549,7 @@ function bomff_handle_service_account_delete() {
 
     delete_option( 'bomff_service_account_encrypted' );
     delete_transient( 'bomff_firebase_access_token_v2' );
+    delete_transient( 'bomff_firebase_access_token_v3' );
 
     wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_deleted' => '1' ), admin_url( 'admin.php' ) ) );
     exit;
@@ -558,10 +560,21 @@ function bomff_base64url_encode( $data ) {
     return rtrim( strtr( base64_encode( $data ), '+/', '-_' ), '=' );
 }
 
-function bomff_get_access_token() {
-    $cached = get_transient( 'bomff_firebase_access_token_v2' );
-    if ( ! empty( $cached ) ) {
-        return $cached;
+function bomff_get_access_token( $force_refresh = false ) {
+    $transient_key = 'bomff_firebase_access_token_v3';
+
+    if ( $force_refresh ) {
+        delete_transient( $transient_key );
+    } else {
+        $cached = get_transient( $transient_key );
+        if ( is_array( $cached ) && ! empty( $cached['access_token'] ) && ! empty( $cached['expires_at'] ) && (int) $cached['expires_at'] > time() + 120 ) {
+            return (string) $cached['access_token'];
+        }
+
+        // Do not trust a persistent object cache to evict an expired transient.
+        if ( false !== $cached ) {
+            delete_transient( $transient_key );
+        }
     }
 
     $service_account = bomff_get_service_account();
@@ -618,9 +631,16 @@ function bomff_get_access_token() {
         return new WP_Error( 'token_failed', __( 'Could not obtain Firebase access token.', 'backoffice-manager-for-firebase' ) );
     }
 
-    set_transient( 'bomff_firebase_access_token_v2', $body['access_token'], max( 60, intval( $body['expires_in'] ?? 3600 ) - 120 ) );
+    $expires_in = max( 1, intval( $body['expires_in'] ?? 3600 ) );
+    $cached     = array(
+        'access_token' => (string) $body['access_token'],
+        'expires_at'   => time() + $expires_in,
+    );
 
-    return $body['access_token'];
+    // Refresh two minutes before Google's advertised expiry.
+    set_transient( $transient_key, $cached, max( 1, $expires_in - 120 ) );
+
+    return $cached['access_token'];
 }
 
 function bomff_build_query_string( $query ) {
@@ -1468,15 +1488,20 @@ function bomff_auth_store_error_details( $error ) {
     return $key;
 }
 
+function bomff_auth_response_has_invalid_id_token( $response ) {
+    $raw_body = wp_remote_retrieve_body( $response );
+    $json     = '' !== $raw_body ? json_decode( $raw_body, true ) : array();
+    $error    = is_array( $json ) && isset( $json['error'] ) && is_array( $json['error'] ) ? $json['error'] : array();
+    $status   = isset( $error['status'] ) ? strtoupper( (string) $error['status'] ) : '';
+    $message  = isset( $error['message'] ) ? strtoupper( (string) $error['message'] ) : strtoupper( (string) $raw_body );
+
+    return 'INVALID_ID_TOKEN' === $status || false !== strpos( $message, 'INVALID_ID_TOKEN' );
+}
+
 function bomff_auth_request( $method, $endpoint, $body = null, $query = array() ) {
     $service_account = bomff_get_service_account();
     if ( ! $service_account || empty( $service_account['project_id'] ) ) {
         return new WP_Error( 'not_configured', __( 'Firebase Service Account credentials are not configured. Upload a service account JSON key in Settings to use Authentication.', 'backoffice-manager-for-firebase' ) );
-    }
-
-    $token = bomff_get_access_token();
-    if ( is_wp_error( $token ) ) {
-        return $token;
     }
 
     // Firebase Auth admin operations use the documented Identity Toolkit v1 accounts endpoints.
@@ -1484,19 +1509,6 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
     $query_string = bomff_build_query_string( $query );
     if ( '' !== $query_string ) {
         $url .= '?' . $query_string;
-    }
-
-    $args = array(
-        'method'  => $method,
-        'timeout' => 30,
-        'headers' => array(
-            'Authorization' => 'Bearer ' . $token,
-            'Content-Type'  => 'application/json',
-        ),
-    );
-
-    if ( null !== $body ) {
-        $args['body'] = wp_json_encode( $body );
     }
 
     $normalized_request = array(
@@ -1508,16 +1520,43 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
         'request_body' => $body,
     );
 
-    bomff_auth_log_debug( 'Request', $normalized_request );
+    for ( $attempt = 0; $attempt < 2; $attempt++ ) {
+        $token = bomff_get_access_token( 0 < $attempt );
+        if ( is_wp_error( $token ) ) {
+            return $token;
+        }
 
-    $response = wp_remote_request( $url, $args );
-    if ( is_wp_error( $response ) ) {
-        bomff_auth_log_debug( 'Response', array(
-            'request'       => $normalized_request,
-            'wp_error_code' => $response->get_error_code(),
-            'wp_error_message' => $response->get_error_message(),
-        ) );
-        return $response;
+        $args = array(
+            'method'  => $method,
+            'timeout' => 30,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type'  => 'application/json',
+            ),
+        );
+
+        if ( null !== $body ) {
+            $args['body'] = wp_json_encode( $body );
+        }
+
+        bomff_auth_log_debug( 'Request', $normalized_request );
+
+        $response = wp_remote_request( $url, $args );
+        if ( is_wp_error( $response ) ) {
+            bomff_auth_log_debug( 'Response', array(
+                'request'          => $normalized_request,
+                'wp_error_code'    => $response->get_error_code(),
+                'wp_error_message' => $response->get_error_message(),
+            ) );
+            return $response;
+        }
+
+        if ( 0 === $attempt && bomff_auth_response_has_invalid_id_token( $response ) ) {
+            bomff_auth_log_debug( 'INVALID_ID_TOKEN received; refreshing the OAuth access token and retrying once.', $normalized_request );
+            continue;
+        }
+
+        break;
     }
 
     $code     = wp_remote_retrieve_response_code( $response );
@@ -1609,7 +1648,8 @@ function bomff_auth_format_date( $millis ) {
     if ( empty( $millis ) ) {
         return __( 'Not set', 'backoffice-manager-for-firebase' );
     }
-    $seconds = intval( $millis ) > 9999999999 ? intval( $millis ) / 1000 : intval( $millis );
+    $timestamp = (int) $millis;
+    $seconds   = $timestamp > 9999999999 ? (int) floor( $timestamp / 1000 ) : $timestamp;
     return get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $seconds ), 'Y-m-d H:i:s' );
 }
 
