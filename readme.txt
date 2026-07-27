@@ -8,7 +8,7 @@ Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Connect WordPress to Firebase Firestore and Authentication. Browse collections, manage documents, administer Firebase Auth users, import structures, and test everything with Demo Mode — no Firebase configuration required.
+Manage Firebase Firestore documents and Authentication users securely from the WordPress admin, with an optional Demo Mode.
 
 == Description ==
 

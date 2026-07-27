@@ -32,6 +32,7 @@ $views = array(
     dirname( __DIR__ ) . '/pages/auth.php',
     dirname( __DIR__ ) . '/bomff-settings.php',
 );
+$view_data = array();
 
 ob_start();
 foreach ( $views as $view ) {
