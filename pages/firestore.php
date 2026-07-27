@@ -7,15 +7,15 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     wp_die( esc_html__( 'You do not have permission.', 'backoffice-manager-for-firebase' ) );
 }
 
-$demo_mode = bomff_is_demo_mode_context();
+$bomff_demo_mode = ! empty( $bomff_view_data['demo_mode'] );
 ?>
 
 <div class="wrap bomff-wrap">
-  <h1><?php echo esc_html( $demo_mode ? __( 'Firestore Demo Mode', 'backoffice-manager-for-firebase' ) : __( 'Firestore', 'backoffice-manager-for-firebase' ) ); ?></h1>
+  <h1><?php echo esc_html( $bomff_demo_mode ? __( 'Firestore Demo Mode', 'backoffice-manager-for-firebase' ) : __( 'Firestore', 'backoffice-manager-for-firebase' ) ); ?></h1>
 
   <div id="firebase-admin-panel-app">
 
-    <?php if ( $demo_mode ) : ?>
+    <?php if ( $bomff_demo_mode ) : ?>
       <div class="notice notice-info bomff-demo-banner">
         <p>
           <strong><?php esc_html_e( 'Demo Mode: no real Firebase project is connected.', 'backoffice-manager-for-firebase' ); ?></strong>
@@ -77,7 +77,7 @@ $demo_mode = bomff_is_demo_mode_context();
     <div class="bomff-section bomff-mt-20">
       <h2><?php esc_html_e( 'Explore a collection', 'backoffice-manager-for-firebase' ); ?></h2>
 
-      <?php if ( $demo_mode ) : ?>
+      <?php if ( $bomff_demo_mode ) : ?>
         <div class="bomff-demo-collections" aria-label="<?php echo esc_attr__( 'Demo collections', 'backoffice-manager-for-firebase' ); ?>">
           <span><?php esc_html_e( 'Demo collections:', 'backoffice-manager-for-firebase' ); ?></span>
           <button class="button bomff-demo-collection" type="button" data-collection="users"><?php esc_html_e( 'users', 'backoffice-manager-for-firebase' ); ?></button>
@@ -90,7 +90,7 @@ $demo_mode = bomff_is_demo_mode_context();
         <input
           type="text"
           id="bomff-collection-name"
-          placeholder="<?php echo esc_attr( $demo_mode ? __( 'e.g. users', 'backoffice-manager-for-firebase' ) : __( 'e.g. affiliates', 'backoffice-manager-for-firebase' ) ); ?>"
+          placeholder="<?php echo esc_attr( $bomff_demo_mode ? __( 'e.g. users', 'backoffice-manager-for-firebase' ) : __( 'e.g. affiliates', 'backoffice-manager-for-firebase' ) ); ?>"
         />
 
         <select id="bomff-page-size">

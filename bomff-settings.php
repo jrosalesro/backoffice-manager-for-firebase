@@ -7,16 +7,16 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     return;
 }
 
-$service_account = bomff_get_service_account();
-$active_tab      = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'connection';
-$allowed_tabs    = array( 'connection', 'permissions' );
+$bomff_service_account = $bomff_view_data['service_account'] ?? null;
+$bomff_active_tab      = $bomff_view_data['active_tab'] ?? 'connection';
+$bomff_allowed_tabs    = array( 'connection', 'permissions' );
 
-if ( ! in_array( $active_tab, $allowed_tabs, true ) ) {
-    $active_tab = 'connection';
+if ( ! in_array( $bomff_active_tab, $bomff_allowed_tabs, true ) ) {
+    $bomff_active_tab = 'connection';
 }
 
-$base_url      = admin_url( 'admin.php?page=bomff-settings' );
-$firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sdk_in_non-google_environments';
+$bomff_base_url      = admin_url( 'admin.php?page=bomff-settings' );
+$bomff_firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sdk_in_non-google_environments';
 ?>
 
 <div class="wrap bomff-wrap">
@@ -42,16 +42,16 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
     <?php endif; ?>
 
     <nav class="nav-tab-wrapper bomff-mt-20" aria-label="<?php echo esc_attr__( 'Settings sections', 'backoffice-manager-for-firebase' ); ?>">
-        <a href="<?php echo esc_url( add_query_arg( 'tab', 'connection', $base_url ) ); ?>" class="nav-tab <?php echo esc_attr( 'connection' === $active_tab ? 'nav-tab-active' : '' ); ?>">
+        <a href="<?php echo esc_url( add_query_arg( 'tab', 'connection', $bomff_base_url ) ); ?>" class="nav-tab <?php echo esc_attr( 'connection' === $bomff_active_tab ? 'nav-tab-active' : '' ); ?>">
             <?php esc_html_e( 'Connection', 'backoffice-manager-for-firebase' ); ?>
         </a>
 
-        <a href="<?php echo esc_url( add_query_arg( 'tab', 'permissions', $base_url ) ); ?>" class="nav-tab <?php echo esc_attr( 'permissions' === $active_tab ? 'nav-tab-active' : '' ); ?>">
+        <a href="<?php echo esc_url( add_query_arg( 'tab', 'permissions', $bomff_base_url ) ); ?>" class="nav-tab <?php echo esc_attr( 'permissions' === $bomff_active_tab ? 'nav-tab-active' : '' ); ?>">
             <?php esc_html_e( 'Permissions', 'backoffice-manager-for-firebase' ); ?>
         </a>
     </nav>
 
-    <?php if ( 'connection' === $active_tab ) : ?>
+    <?php if ( 'connection' === $bomff_active_tab ) : ?>
 
         <div class="bomff-section bomff-mt-20">
             <h2><?php esc_html_e( 'Connect Firebase', 'backoffice-manager-for-firebase' ); ?></h2>
@@ -61,7 +61,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
             </p>
 
             <p>
-                <a href="<?php echo esc_url( $firebase_help ); ?>" target="_blank" rel="noopener noreferrer">
+                <a href="<?php echo esc_url( $bomff_firebase_help ); ?>" target="_blank" rel="noopener noreferrer">
                     <?php esc_html_e( 'Open the official Firebase guide to create the JSON key file', 'backoffice-manager-for-firebase' ); ?>
                 </a>
             </p>
@@ -105,7 +105,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
         <div class="bomff-section bomff-mt-20">
             <h2><?php esc_html_e( 'Current connection', 'backoffice-manager-for-firebase' ); ?></h2>
 
-            <?php if ( $service_account ) : ?>
+            <?php if ( $bomff_service_account ) : ?>
                 <table class="widefat striped">
                     <tbody>
                         <tr>
@@ -118,11 +118,11 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
                         </tr>
                         <tr>
                             <td><strong><?php esc_html_e( 'Project ID', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                            <td><code><?php echo esc_html( $service_account['project_id'] ?? '' ); ?></code></td>
+                            <td><code><?php echo esc_html( $bomff_service_account['project_id'] ?? '' ); ?></code></td>
                         </tr>
                         <tr>
                             <td><strong><?php esc_html_e( 'Firebase account', 'backoffice-manager-for-firebase' ); ?></strong></td>
-                            <td><code><?php echo esc_html( $service_account['client_email'] ?? '' ); ?></code></td>
+                            <td><code><?php echo esc_html( $bomff_service_account['client_email'] ?? '' ); ?></code></td>
                         </tr>
                     </tbody>
                 </table>
@@ -166,7 +166,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
             </form>
         </div>
 
-    <?php elseif ( 'permissions' === $active_tab ) : ?>
+    <?php elseif ( 'permissions' === $bomff_active_tab ) : ?>
 
         <div class="bomff-section bomff-mt-20">
             <h2><?php esc_html_e( 'Permissions', 'backoffice-manager-for-firebase' ); ?></h2>
