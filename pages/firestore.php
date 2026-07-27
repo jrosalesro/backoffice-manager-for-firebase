@@ -7,8 +7,6 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     wp_die( esc_html__( 'You do not have permission.', 'backoffice-manager-for-firebase' ) );
 }
 
-function bomff_render_firestore_page_content() {
-
 $demo_mode = bomff_is_demo_mode_context();
 ?>
 
@@ -159,7 +157,3 @@ $demo_mode = bomff_is_demo_mode_context();
 
   </div>
 </div>
-<?php
-}
-
-bomff_render_firestore_page_content();

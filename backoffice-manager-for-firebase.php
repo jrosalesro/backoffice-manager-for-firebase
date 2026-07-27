@@ -227,6 +227,90 @@ function bomff_add_admin_menu() {
 }
 add_action( 'admin_menu', 'bomff_add_admin_menu' );
 
+function bomff_auth_action_form( $action, $label, $user, $class = 'button-link', $row_action_class = '' ) {
+    $confirm = 'delete' === $action ? "return confirm('Are you sure you want to permanently delete this Firebase Auth user?');" : '';
+    ?>
+    <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="bomff-inline-form<?php echo $row_action_class ? ' ' . esc_attr( $row_action_class ) : ''; ?>" onsubmit="<?php echo esc_attr( $confirm ); ?>">
+        <?php wp_nonce_field( 'bomff_auth_action_' . $action . '_' . $user['uid'] ); ?>
+        <input type="hidden" name="action" value="bomff_auth_action" />
+        <input type="hidden" name="bomff_auth_action" value="<?php echo esc_attr( $action ); ?>" />
+        <input type="hidden" name="uid" value="<?php echo esc_attr( $user['uid'] ); ?>" />
+        <input type="hidden" name="email" value="<?php echo esc_attr( $user['email'] ); ?>" />
+        <button type="submit" class="<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></button>
+    </form>
+    <?php
+}
+
+function bomff_auth_render_error_notice( $message, $error_data = array() ) {
+    $is_identity_toolkit_disabled = is_array( $error_data ) && ! empty( $error_data['identity_toolkit_api_disabled'] );
+    $project_id                   = is_array( $error_data ) && ! empty( $error_data['project_id'] ) ? (string) $error_data['project_id'] : '';
+    $enable_api_url               = 'https://console.cloud.google.com/apis/library/identitytoolkit.googleapis.com';
+
+    if ( '' !== $project_id ) {
+        $enable_api_url = add_query_arg( 'project', $project_id, $enable_api_url );
+    }
+
+    if ( $is_identity_toolkit_disabled ) :
+        $retry_url = remove_query_arg( array( 'bomff_auth_error', 'bomff_auth_error_key' ) );
+        ?>
+        <div class="notice bomff-auth-info-card">
+            <div class="bomff-auth-info-card__icon" aria-hidden="true">ℹ️</div>
+            <div class="bomff-auth-info-card__content">
+                <h2><?php esc_html_e( 'Firebase Authentication is not enabled for this project.', 'backoffice-manager-for-firebase' ); ?></h2>
+                <p><?php esc_html_e( 'The Identity Toolkit API is required to manage Firebase Authentication users.', 'backoffice-manager-for-firebase' ); ?></p>
+                <p><?php esc_html_e( 'Enable the API in Google Cloud Console, wait a few moments for the change to propagate, then retry the operation.', 'backoffice-manager-for-firebase' ); ?></p>
+                <p class="bomff-auth-info-card__actions">
+                    <a class="button button-primary" href="<?php echo esc_url( $enable_api_url ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Enable Identity Toolkit API', 'backoffice-manager-for-firebase' ); ?></a>
+                    <a class="button" href="<?php echo esc_url( $retry_url ); ?>"><?php esc_html_e( 'Retry', 'backoffice-manager-for-firebase' ); ?></a>
+                </p>
+                <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
+                    <details>
+                        <summary><?php esc_html_e( 'Technical details', 'backoffice-manager-for-firebase' ); ?></summary>
+                        <p><strong><?php echo esc_html( $message ); ?></strong></p>
+                        <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
+                    </details>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php
+        return;
+    endif;
+    ?>
+    <div class="notice notice-error">
+        <p><strong><?php echo esc_html( $message ); ?></strong></p>
+        <?php if ( is_array( $error_data ) && ! empty( $error_data['suggestions'] ) ) : ?>
+            <ul>
+                <?php foreach ( $error_data['suggestions'] as $suggestion ) : ?>
+                    <li><?php echo esc_html( $suggestion ); ?></li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+        <?php if ( is_array( $error_data ) && ! empty( $error_data['details'] ) ) : ?>
+            <details>
+                <summary><?php esc_html_e( 'Technical details', 'backoffice-manager-for-firebase' ); ?></summary>
+                <pre><?php echo esc_html( wp_json_encode( $error_data['details'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre>
+            </details>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+function bomff_auth_get_notice_error_data() {
+    if ( empty( $_GET['bomff_auth_error_key'] ) ) {
+        return array();
+    }
+
+    $key = sanitize_text_field( wp_unslash( $_GET['bomff_auth_error_key'] ) );
+    if ( '' === $key ) {
+        return array();
+    }
+
+    $error_data = get_transient( 'bomff_auth_error_' . $key );
+    delete_transient( 'bomff_auth_error_' . $key );
+
+    return is_array( $error_data ) ? $error_data : array();
+}
+
 function bomff_render_firestore_page() {
     if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
         wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'backoffice-manager-for-firebase' ) );

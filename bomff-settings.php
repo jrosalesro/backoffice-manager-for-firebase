@@ -7,8 +7,6 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     return;
 }
 
-function bomff_render_settings_page_content() {
-
 $service_account = bomff_get_service_account();
 $active_tab      = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'connection';
 $allowed_tabs    = array( 'connection', 'permissions' );
@@ -197,7 +195,3 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
 
     <?php endif; ?>
 </div>
-<?php
-}
-
-bomff_render_settings_page_content();
