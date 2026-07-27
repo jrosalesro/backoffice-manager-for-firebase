@@ -1,8 +1,8 @@
 <?php
 /*
-Plugin Name: Firebase Integration for WordPress – Firestore & Auth
+Plugin Name: Firebase Integration – Firestore & Auth
 Description: Connect WordPress to Firebase Firestore and Authentication to manage collections, documents, and Auth users from your admin area.
-Version: 0.4.0
+Version: 0.5.0
 Author: José Rosales Rosendo
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -16,6 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! defined( 'BOMFF_PLUGIN_PATH' ) ) {
     define( 'BOMFF_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
+}
+if ( ! defined( 'BOMFF_VERSION' ) ) {
+    define( 'BOMFF_VERSION', '0.5.0' );
 }
 if ( ! defined( 'BOMFF_PLUGIN_URL' ) ) {
     define( 'BOMFF_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -375,6 +378,7 @@ function bomff_validate_service_account( $json ) {
 
     foreach ( array( 'type', 'project_id', 'private_key', 'client_email', 'token_uri' ) as $key ) {
         if ( empty( $data[ $key ] ) ) {
+            /* translators: %s: Service account JSON field name. */
             return new WP_Error( 'missing_key', sprintf( __( 'Missing service account field: %s', 'backoffice-manager-for-firebase' ), $key ) );
         }
     }
@@ -413,14 +417,23 @@ function bomff_handle_service_account_upload() {
         exit;
     }
 
-    $file = $_FILES['bomff_service_account_json'];
+    $file = array_map( 'wp_unslash', $_FILES['bomff_service_account_json'] );
 
     if ( ! empty( $file['error'] ) ) {
         wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Upload failed.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
         exit;
     }
 
-    $json = file_get_contents( $file['tmp_name'] );
+    $temporary_path = isset( $file['tmp_name'] ) ? (string) $file['tmp_name'] : '';
+    $original_name  = isset( $file['name'] ) ? sanitize_file_name( $file['name'] ) : '';
+    $file_size      = isset( $file['size'] ) ? absint( $file['size'] ) : 0;
+
+    if ( ! is_uploaded_file( $temporary_path ) || $file_size < 1 || $file_size > 1024 * 1024 || 'json' !== strtolower( pathinfo( $original_name, PATHINFO_EXTENSION ) ) ) {
+        wp_safe_redirect( add_query_arg( array( 'page' => 'bomff-settings', 'bomff_error' => rawurlencode( __( 'Please upload a valid JSON file no larger than 1 MB.', 'backoffice-manager-for-firebase' ) ) ), admin_url( 'admin.php' ) ) );
+        exit;
+    }
+
+    $json = file_get_contents( $temporary_path );
     $data = bomff_validate_service_account( $json );
 
     if ( is_wp_error( $data ) ) {
@@ -1339,6 +1352,7 @@ function bomff_auth_error_message_from_data( $error_data ) {
 
     $parts = array();
     if ( ! empty( $error_data['status'] ) ) {
+        /* translators: %d: HTTP response status code. */
         $status_label = sprintf( __( 'HTTP %d', 'backoffice-manager-for-firebase' ), (int) $error_data['status'] );
         if ( ! empty( $error_data['status_text'] ) ) {
             $status_label .= ' ' . (string) $error_data['status_text'];
@@ -1444,18 +1458,19 @@ function bomff_auth_request( $method, $endpoint, $body = null, $query = array() 
 }
 
 function bomff_auth_normalize_user( $user ) {
+    // Every value below is mapped from the Identity Toolkit user record; none is read from Firestore.
     return array(
-        'uid'            => $user['localId'] ?? '',
-        'email'          => $user['email'] ?? '',
-        'displayName'    => $user['displayName'] ?? '',
-        'phoneNumber'    => $user['phoneNumber'] ?? '',
-        'photoUrl'       => $user['photoUrl'] ?? '',
+        'uid'              => $user['localId'] ?? '',
+        'email'            => $user['email'] ?? '',
+        'displayName'      => $user['displayName'] ?? '',
+        'phoneNumber'      => $user['phoneNumber'] ?? '',
+        'photoUrl'         => $user['photoUrl'] ?? '',
         'providerUserInfo' => $user['providerUserInfo'] ?? array(),
-        'emailVerified'  => ! empty( $user['emailVerified'] ),
-        'disabled'       => ! empty( $user['disabled'] ),
-        'createdAt'      => $user['createdAt'] ?? '',
-        'lastLoginAt'    => $user['lastLoginAt'] ?? '',
-        'customClaims'   => isset( $user['customAttributes'] ) ? json_decode( $user['customAttributes'], true ) : array(),
+        'emailVerified'    => ! empty( $user['emailVerified'] ),
+        'disabled'         => ! empty( $user['disabled'] ),
+        'createdAt'        => $user['createdAt'] ?? '',
+        'lastLoginAt'      => $user['lastLoginAt'] ?? '',
+        'customClaims'     => isset( $user['customAttributes'] ) && is_array( json_decode( $user['customAttributes'], true ) ) ? json_decode( $user['customAttributes'], true ) : array(),
     );
 }
 
@@ -1508,20 +1523,32 @@ function bomff_auth_filter_users( $users, $search ) {
 
 function bomff_auth_format_date( $millis ) {
     if ( empty( $millis ) ) {
-        return '—';
+        return __( 'Not set', 'backoffice-manager-for-firebase' );
     }
     $seconds = intval( $millis ) > 9999999999 ? intval( $millis ) / 1000 : intval( $millis );
-    return esc_html( get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $seconds ), 'Y-m-d H:i:s' ) );
+    return get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $seconds ), 'Y-m-d H:i:s' );
 }
 
 function bomff_auth_provider_labels( $user ) {
+    $provider_names = array(
+        'password'      => __( 'Email/password', 'backoffice-manager-for-firebase' ),
+        'google.com'    => __( 'Google', 'backoffice-manager-for-firebase' ),
+        'phone'         => __( 'Phone', 'backoffice-manager-for-firebase' ),
+        'apple.com'     => __( 'Apple', 'backoffice-manager-for-firebase' ),
+        'github.com'    => __( 'GitHub', 'backoffice-manager-for-firebase' ),
+        'facebook.com'  => __( 'Facebook', 'backoffice-manager-for-firebase' ),
+        'twitter.com'   => __( 'X / Twitter', 'backoffice-manager-for-firebase' ),
+        'microsoft.com' => __( 'Microsoft', 'backoffice-manager-for-firebase' ),
+        'yahoo.com'     => __( 'Yahoo', 'backoffice-manager-for-firebase' ),
+    );
     $providers = array();
-    foreach ( $user['providerUserInfo'] as $provider ) {
+    foreach ( (array) $user['providerUserInfo'] as $provider ) {
         if ( ! empty( $provider['providerId'] ) ) {
-            $providers[] = $provider['providerId'];
+            $provider_id = (string) $provider['providerId'];
+            $providers[] = isset( $provider_names[ $provider_id ] ) ? $provider_names[ $provider_id ] : $provider_id;
         }
     }
-    return $providers ? implode( ', ', array_unique( $providers ) ) : '—';
+    return $providers ? implode( ', ', array_unique( $providers ) ) : __( 'Not set', 'backoffice-manager-for-firebase' );
 }
 
 function bomff_auth_admin_notice_redirect( $args ) {

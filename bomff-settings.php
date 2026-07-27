@@ -7,6 +7,8 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     return;
 }
 
+function bomff_render_settings_page_content() {
+
 $service_account = bomff_get_service_account();
 $active_tab      = isset( $_GET['tab'] ) ? sanitize_key( wp_unslash( $_GET['tab'] ) ) : 'connection';
 $allowed_tabs    = array( 'connection', 'permissions' );
@@ -42,11 +44,11 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
     <?php endif; ?>
 
     <nav class="nav-tab-wrapper bomff-mt-20" aria-label="<?php echo esc_attr__( 'Settings sections', 'backoffice-manager-for-firebase' ); ?>">
-        <a href="<?php echo esc_url( add_query_arg( 'tab', 'connection', $base_url ) ); ?>" class="nav-tab <?php echo 'connection' === $active_tab ? 'nav-tab-active' : ''; ?>">
+        <a href="<?php echo esc_url( add_query_arg( 'tab', 'connection', $base_url ) ); ?>" class="nav-tab <?php echo esc_attr( 'connection' === $active_tab ? 'nav-tab-active' : '' ); ?>">
             <?php esc_html_e( 'Connection', 'backoffice-manager-for-firebase' ); ?>
         </a>
 
-        <a href="<?php echo esc_url( add_query_arg( 'tab', 'permissions', $base_url ) ); ?>" class="nav-tab <?php echo 'permissions' === $active_tab ? 'nav-tab-active' : ''; ?>">
+        <a href="<?php echo esc_url( add_query_arg( 'tab', 'permissions', $base_url ) ); ?>" class="nav-tab <?php echo esc_attr( 'permissions' === $active_tab ? 'nav-tab-active' : '' ); ?>">
             <?php esc_html_e( 'Permissions', 'backoffice-manager-for-firebase' ); ?>
         </a>
     </nav>
@@ -195,3 +197,7 @@ $firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_the_sd
 
     <?php endif; ?>
 </div>
+<?php
+}
+
+bomff_render_settings_page_content();
