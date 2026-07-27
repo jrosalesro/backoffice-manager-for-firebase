@@ -1,10 +1,10 @@
-=== Firebase Integration for WordPress – Firestore & Auth ===
+=== Firebase Integration – Firestore & Auth ===
 Contributors: jrosalesdev
 Tags: firebase, firestore, admin, backoffice, database
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 0.4.0
+Stable tag: 0.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -12,7 +12,7 @@ Connect WordPress to Firebase Firestore and Authentication. Browse collections, 
 
 == Description ==
 
-Firebase Integration for WordPress – Firestore & Auth allows you to manage data stored in Firebase Firestore and inspect Firebase Authentication users directly from your WordPress admin dashboard.
+Firebase Integration – Firestore & Auth allows you to manage data stored in Firebase Firestore and inspect Firebase Authentication users directly from your WordPress admin dashboard.
 
 The plugin provides a lightweight Firestore administration interface focused on browsing collections, managing documents, and performing common CRUD operations without leaving WordPress.
 
@@ -77,6 +77,14 @@ Not currently. Firestore is the only supported Firebase database.
 
 == Changelog ==
 
+= 0.5.0 =
+
+* Improved Firebase Authentication user details and provider labels.
+* Hardened service account JSON uploads and admin input handling.
+* Corrected escaping, sanitization, translator comments, and view variable scope.
+* Added reproducible packaging with the canonical plugin directory name.
+* Updated the public plugin name while retaining the existing slug and text domain.
+
 = 0.4.0 =
 
 * Added Demo Mode for testing without Firebase credentials.
@@ -107,6 +115,10 @@ Not currently. Firestore is the only supported Firebase database.
 * Initial public release.
 
 == Upgrade Notice ==
+
+= 0.5.0 =
+
+Improves Authentication user details, security checks, and distribution packaging.
 
 = 0.4.0 =
 

@@ -7,12 +7,6 @@ if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
     wp_die( esc_html__( 'You do not have permission.', 'backoffice-manager-for-firebase' ) );
 }
 
-$service_account = bomff_get_service_account();
-$view_uid        = isset( $_GET['uid'] ) ? sanitize_text_field( wp_unslash( $_GET['uid'] ) ) : '';
-$search          = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
-$page_token      = isset( $_GET['page_token'] ) ? sanitize_text_field( wp_unslash( $_GET['page_token'] ) ) : '';
-$base_url        = admin_url( 'admin.php?page=bomff-auth' );
-
 function bomff_auth_action_form( $action, $label, $user, $class = 'button-link', $row_action_class = '' ) {
     $confirm = 'delete' === $action ? "return confirm('Are you sure you want to permanently delete this Firebase Auth user?');" : '';
     ?>
@@ -96,6 +90,14 @@ function bomff_auth_get_notice_error_data() {
 
     return is_array( $error_data ) ? $error_data : array();
 }
+
+function bomff_auth_render_page_content() {
+    $service_account = bomff_get_service_account();
+    $view_uid        = isset( $_GET['uid'] ) ? sanitize_text_field( wp_unslash( $_GET['uid'] ) ) : '';
+    $search          = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+    $page_token      = isset( $_GET['page_token'] ) ? sanitize_text_field( wp_unslash( $_GET['page_token'] ) ) : '';
+    $base_url        = admin_url( 'admin.php?page=bomff-auth' );
+    $not_set         = __( 'Not set', 'backoffice-manager-for-firebase' );
 ?>
 
 <div class="wrap bomff-wrap">
@@ -128,16 +130,16 @@ function bomff_auth_get_notice_error_data() {
                 <table class="widefat striped bomff-detail-table">
                     <tbody>
                         <tr><th><?php esc_html_e( 'UID', 'backoffice-manager-for-firebase' ); ?></th><td><code><?php echo esc_html( $user['uid'] ); ?></code></td></tr>
-                        <tr><th><?php esc_html_e( 'Email', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( $user['email'] ?: '—' ); ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Display name', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( $user['displayName'] ?: '—' ); ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Phone number', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( $user['phoneNumber'] ?: '—' ); ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Photo URL', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo $user['photoUrl'] ? '<a href="' . esc_url( $user['photoUrl'] ) . '" target="_blank" rel="noopener noreferrer">' . esc_html( $user['photoUrl'] ) . '</a>' : '—'; ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Provider data', 'backoffice-manager-for-firebase' ); ?></th><td><pre><?php echo esc_html( wp_json_encode( $user['providerUserInfo'], JSON_PRETTY_PRINT ) ); ?></pre></td></tr>
+                        <tr><th><?php esc_html_e( 'Email', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( $user['email'] ?: $not_set ); ?></td></tr>
+                        <tr><th><?php esc_html_e( 'Display name', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( $user['displayName'] ?: $not_set ); ?></td></tr>
+                        <tr><th><?php esc_html_e( 'Phone number', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( $user['phoneNumber'] ?: $not_set ); ?></td></tr>
+                        <tr><th><?php esc_html_e( 'Photo URL', 'backoffice-manager-for-firebase' ); ?></th><td><?php if ( $user['photoUrl'] ) : ?><a href="<?php echo esc_url( $user['photoUrl'] ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html( $user['photoUrl'] ); ?></a><?php else : echo esc_html( $not_set ); endif; ?></td></tr>
+                        <tr><th><?php esc_html_e( 'Providers', 'backoffice-manager-for-firebase' ); ?></th><td><strong><?php echo esc_html( bomff_auth_provider_labels( $user ) ); ?></strong><?php if ( ! empty( $user['providerUserInfo'] ) ) : ?><details class="bomff-provider-details"><summary><?php esc_html_e( 'View original provider JSON', 'backoffice-manager-for-firebase' ); ?></summary><pre><?php echo esc_html( wp_json_encode( $user['providerUserInfo'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) ); ?></pre></details><?php endif; ?></td></tr>
                         <tr><th><?php esc_html_e( 'Email verified', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo $user['emailVerified'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td></tr>
                         <tr><th><?php esc_html_e( 'Disabled', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo $user['disabled'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Created date', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo bomff_auth_format_date( $user['createdAt'] ); ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo bomff_auth_format_date( $user['lastLoginAt'] ); ?></td></tr>
-                        <tr><th><?php esc_html_e( 'Custom claims', 'backoffice-manager-for-firebase' ); ?></th><td><pre><?php echo esc_html( wp_json_encode( is_array( $user['customClaims'] ) ? $user['customClaims'] : array(), JSON_PRETTY_PRINT ) ); ?></pre><p class="description"><?php esc_html_e( 'Custom claims are read-only in this MVP.', 'backoffice-manager-for-firebase' ); ?></p></td></tr>
+                        <tr><th><?php esc_html_e( 'Created date', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( bomff_auth_format_date( $user['createdAt'] ) ); ?></td></tr>
+                        <tr><th><?php esc_html_e( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?></th><td><?php echo esc_html( bomff_auth_format_date( $user['lastLoginAt'] ) ); ?></td></tr>
+                        <tr><th><?php esc_html_e( 'Custom claims', 'backoffice-manager-for-firebase' ); ?></th><td><?php if ( ! empty( $user['customClaims'] ) ) : ?><pre><?php echo esc_html( wp_json_encode( is_array( $user['customClaims'] ) ? $user['customClaims'] : array(), JSON_PRETTY_PRINT ) ); ?></pre><?php else : echo esc_html( $not_set ); endif; ?><p class="description"><?php esc_html_e( 'Custom claims are read-only in this version.', 'backoffice-manager-for-firebase' ); ?></p></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -180,8 +182,8 @@ function bomff_auth_get_notice_error_data() {
                                 <td data-colname="<?php echo esc_attr__( 'Provider(s)', 'backoffice-manager-for-firebase' ); ?>"><?php echo esc_html( bomff_auth_provider_labels( $user ) ); ?></td>
                                 <td data-colname="<?php echo esc_attr__( 'Email verified', 'backoffice-manager-for-firebase' ); ?>"><?php echo $user['emailVerified'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td>
                                 <td data-colname="<?php echo esc_attr__( 'Disabled', 'backoffice-manager-for-firebase' ); ?>"><?php echo $user['disabled'] ? esc_html__( 'Yes', 'backoffice-manager-for-firebase' ) : esc_html__( 'No', 'backoffice-manager-for-firebase' ); ?></td>
-                                <td data-colname="<?php echo esc_attr__( 'Created date', 'backoffice-manager-for-firebase' ); ?>"><?php echo bomff_auth_format_date( $user['createdAt'] ); ?></td>
-                                <td data-colname="<?php echo esc_attr__( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?>"><?php echo bomff_auth_format_date( $user['lastLoginAt'] ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Created date', 'backoffice-manager-for-firebase' ); ?>"><?php echo esc_html( bomff_auth_format_date( $user['createdAt'] ) ); ?></td>
+                                <td data-colname="<?php echo esc_attr__( 'Last sign-in date', 'backoffice-manager-for-firebase' ); ?>"><?php echo esc_html( bomff_auth_format_date( $user['lastLoginAt'] ) ); ?></td>
                             </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -194,3 +196,7 @@ function bomff_auth_get_notice_error_data() {
         <?php endif; ?>
     <?php endif; ?>
 </div>
+<?php
+}
+
+bomff_auth_render_page_content();

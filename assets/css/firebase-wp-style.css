@@ -441,3 +441,17 @@
     padding:14px;
   }
 }
+.bomff-provider-details {
+  margin-top: 10px;
+}
+
+.bomff-provider-details summary {
+  color: #2271b1;
+  cursor: pointer;
+}
+
+.bomff-provider-details pre {
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
