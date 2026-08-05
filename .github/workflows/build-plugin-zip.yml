@@ -1,0 +1,24 @@
+name: Build Plugin Zip
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-plugin-zip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Make build script executable
+        run: chmod +x bin/build-zip.sh
+
+      - name: Build plugin zip
+        run: ./bin/build-zip.sh
+
+      - name: Upload plugin zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: backoffice-manager-for-firebase
+          path: dist/backoffice-manager-for-firebase.zip
