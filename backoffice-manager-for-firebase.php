@@ -1278,12 +1278,18 @@ function bomff_ajax_get_document() {
 add_action( 'wp_ajax_bomff_get_document', 'bomff_ajax_get_document' );
 
 function bomff_ajax_save_document() {
-    bomff_ajax_require_admin();
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
+        wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'backoffice-manager-for-firebase' ) ), 403 );
+    }
+
+    // Keep verification in this handler so it visibly precedes every form-data read.
+    check_ajax_referer( 'bomff_ajax', 'nonce' );
 
     $collection = bomff_get_post_firestore_path( 'collection' );
     $doc_id     = bomff_get_post_firestore_document_id( 'docId' );
     // JSON cannot be sanitized as a string without corrupting its types; every decoded key and value is sanitized below.
-    $data_raw = isset( $_POST['data'] ) && is_string( $_POST['data'] ) ? wp_unslash( $_POST['data'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $data_value = wp_unslash( $_POST['data'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $data_raw   = is_string( $data_value ) ? $data_value : '';
 
     if ( empty( $collection ) || empty( $doc_id ) ) {
         wp_send_json_error( array( 'message' => __( 'Collection and document ID are required.', 'backoffice-manager-for-firebase' ) ), 400 );
@@ -1356,11 +1362,17 @@ function bomff_ajax_get_structure() {
 add_action( 'wp_ajax_bomff_get_structure', 'bomff_ajax_get_structure' );
 
 function bomff_ajax_save_structure() {
-    bomff_ajax_require_admin();
+    if ( ! current_user_can( BOMFF_CAPABILITY ) ) {
+        wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'backoffice-manager-for-firebase' ) ), 403 );
+    }
+
+    // Keep verification in this handler so it visibly precedes every form-data read.
+    check_ajax_referer( 'bomff_ajax', 'nonce' );
 
     $collection = bomff_get_post_firestore_path( 'collection' );
     // JSON is decoded first so field names, types, and booleans can be validated independently below.
-    $fields_raw = isset( $_POST['fields'] ) && is_string( $_POST['fields'] ) ? wp_unslash( $_POST['fields'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $fields_value = wp_unslash( $_POST['fields'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+    $fields_raw   = is_string( $fields_value ) ? $fields_value : '';
 
     if ( empty( $collection ) ) {
         wp_send_json_error( array( 'message' => __( 'Empty collection.', 'backoffice-manager-for-firebase' ) ), 400 );
