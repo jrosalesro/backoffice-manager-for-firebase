@@ -22,6 +22,9 @@ function esc_url( $url ) { return $url; }
 function esc_attr( $text ) { return $text; }
 function esc_html( $text ) { return htmlspecialchars( (string) $text, ENT_QUOTES, 'UTF-8' ); }
 function wp_kses_post( $text ) { return $text; }
+function sanitize_text_field( $text ) { return trim( strip_tags( (string) $text ) ); }
+function sanitize_key( $key ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $key ) ); }
+function bomff_get_get_value( $key, $default = '' ) { return isset( $_GET[ $key ] ) ? $_GET[ $key ] : $default; }
 function add_query_arg( $key, $value = null, $url = '' ) { return $url . '?' . ( is_array( $key ) ? http_build_query( $key ) : rawurlencode( $key ) . '=' . rawurlencode( $value ) ); }
 function wp_nonce_field() {}
 function submit_button( $text ) { echo '<button>' . esc_html( $text ) . '</button>'; }

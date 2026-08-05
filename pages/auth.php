@@ -18,12 +18,13 @@ $bomff_not_set         = __( 'Not set', 'backoffice-manager-for-firebase' );
 <div class="wrap bomff-wrap">
     <h1><?php esc_html_e( 'Authentication', 'backoffice-manager-for-firebase' ); ?></h1>
 
-    <?php if ( isset( $_GET['bomff_auth_updated'] ) ) : ?>
+    <?php if ( '1' === sanitize_key( bomff_get_get_value( 'bomff_auth_updated' ) ) ) : ?>
         <div class="notice notice-success is-dismissible"><p><?php esc_html_e( 'Firebase Authentication action completed.', 'backoffice-manager-for-firebase' ); ?></p></div>
     <?php endif; ?>
 
-    <?php if ( isset( $_GET['bomff_auth_error'] ) ) : ?>
-        <?php bomff_auth_render_error_notice( sanitize_text_field( wp_unslash( $_GET['bomff_auth_error'] ) ), bomff_auth_get_notice_error_data() ); ?>
+    <?php $bomff_auth_error = sanitize_text_field( bomff_get_get_value( 'bomff_auth_error' ) ); ?>
+    <?php if ( '' !== $bomff_auth_error ) : ?>
+        <?php bomff_auth_render_error_notice( $bomff_auth_error, bomff_auth_get_notice_error_data() ); ?>
     <?php endif; ?>
 
     <?php if ( ! $bomff_service_account ) : ?>

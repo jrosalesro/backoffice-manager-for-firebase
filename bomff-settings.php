@@ -22,22 +22,23 @@ $bomff_firebase_help = 'https://firebase.google.com/docs/admin/setup#initialize_
 <div class="wrap bomff-wrap">
     <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 
-    <?php if ( isset( $_GET['bomff_saved'] ) ) : ?>
+    <?php if ( '1' === sanitize_key( bomff_get_get_value( 'bomff_saved' ) ) ) : ?>
         <div class="notice notice-success is-dismissible">
             <p><?php esc_html_e( 'Firebase connection saved successfully.', 'backoffice-manager-for-firebase' ); ?></p>
         </div>
     <?php endif; ?>
 
-    <?php if ( isset( $_GET['bomff_deleted'] ) ) : ?>
+    <?php if ( '1' === sanitize_key( bomff_get_get_value( 'bomff_deleted' ) ) ) : ?>
         <div class="notice notice-success is-dismissible">
             <p><?php esc_html_e( 'Firebase connection removed.', 'backoffice-manager-for-firebase' ); ?></p>
         </div>
     <?php endif; ?>
 
 
-    <?php if ( isset( $_GET['bomff_error'] ) ) : ?>
+    <?php $bomff_error = sanitize_text_field( bomff_get_get_value( 'bomff_error' ) ); ?>
+    <?php if ( '' !== $bomff_error ) : ?>
         <div class="notice notice-error">
-            <p><?php echo esc_html( sanitize_text_field( wp_unslash( $_GET['bomff_error'] ) ) ); ?></p>
+            <p><?php echo esc_html( $bomff_error ); ?></p>
         </div>
     <?php endif; ?>
 
